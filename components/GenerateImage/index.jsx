@@ -210,6 +210,7 @@ const GenerateImages = ({ prompt, profile, remainingCredits, setRemainingCredits
       }
 
       setImages([]);
+      setUploadedImage(null)
       const data = await response.json();
       // console.log(data);
       groupImagesBySubPrompt(data.images);
