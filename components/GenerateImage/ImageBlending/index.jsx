@@ -846,7 +846,7 @@ const drawRoiOnCanvas = (canvas, roi, color = "#ff0000") => {
           </div>
           {roi1 && (
             <div className="mt-2 text-xs dark:text-gray-300 text-center">
-              ROI: {roi1.width}x{roi1.height}
+              {/* ROI: {roi1.width}x{roi1.height} */}
             </div>
           )}
         </div>
@@ -958,7 +958,7 @@ const drawRoiOnCanvas = (canvas, roi, color = "#ff0000") => {
 
           {roi2 && (
             <div className="mt-2 text-xs dark:text-gray-300 text-center">
-              ROI: {roi2.width}x{roi2.height}
+              {/* ROI: {roi2.width}x{roi2.height} */}
             </div>
           )}
         </div>
