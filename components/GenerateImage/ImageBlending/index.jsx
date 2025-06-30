@@ -1,0 +1,1343 @@
+import React, { useState, useRef, useEffect } from "react";
+import { AiOutlineCloudUpload, AiOutlineExpand } from "react-icons/ai";
+import { SiCoronarenderer } from "react-icons/si";
+import axios from "axios";
+import Modal from "react-modal";
+
+const ImageBlending = ({
+  setErrorMessage,
+  setShowAlert,
+  profile,
+  uploadedImage1,
+  setUploadedImage1,
+  uploadedImage2,
+  setUploadedImage2,
+  image1File,
+  setImage1File,
+  image2File,
+  setImage2File,
+  type,
+  isDefault,
+  setIsDefault,
+  isPdfLoading,
+  isPdf,
+  loadPdf,
+  totalPages,
+  currentPage,
+  handlePageChange,
+  originalImage2DataURL,
+  setOriginalImage2DataURL,
+  processedImage2File,
+  setProcessedImage2File,
+  checkIfColorImage,
+  convertToGrayscale,
+  isColorImage2,
+  setIsColorImage2,
+  selectedChannel,
+  setSelectedChannel,
+  roi1,
+  roi2,
+  setRoi1,
+  setRoi2,
+}) => {
+  const [isBlending, setIsBlending] = useState(false);
+  const [isDrawing, setIsDrawing] = useState(false);
+  const [startPos, setStartPos] = useState({ x: 0, y: 0 });
+  const [currentImage, setCurrentImage] = useState(null);
+  const [expandedImage, setExpandedImage] = useState(null);
+  const [expandedForROI, setExpandedForROI] = useState(null);
+  const [tempRoi, setTempRoi] = useState({ roi1: null, roi2: null });
+  const [modalRoi, setModalRoi] = useState(null);
+  const [modalStartPos, setModalStartPos] = useState({ x: 0, y: 0 });
+  const [isModalDrawing, setIsModalDrawing] = useState(false);
+  const [image1Dimensions, setImage1Dimensions] = useState({
+    naturalWidth: 0,
+    naturalHeight: 0,
+  });
+  const [image2Dimensions, setImage2Dimensions] = useState({
+    naturalWidth: 0,
+    naturalHeight: 0,
+  });
+
+  const canvasRef1 = useRef(null);
+  const canvasRef2 = useRef(null);
+  const imgRef1 = useRef(null);
+  const imgRef2 = useRef(null);
+  const modalCanvasRef = useRef(null);
+  const modalImgRef = useRef(null);
+  const [blendedResult, setBlendedResult] = useState(null);
+  const BACKEND_URL = process.env.BACKEND_URL;
+
+  const [bright_field, set_bright_field] = useState("");
+  const [dark_field, set_dark_field] = useState("");
+  const [phase_contrast, set_phase_contrast] = useState("");
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const [allImages, setAllImages] = useState([]);
+  const [image2_gray, setImage2_gray] = useState("");
+
+  // Handle image upload
+  const handleImageUpload = (e, isSecondImage = false) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    if (isSecondImage && file.type === "application/pdf") {
+      loadPdf(file);
+      setImage2File(file);
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      const dataURL = event.target.result;
+      if (isSecondImage) {
+        setOriginalImage2DataURL(dataURL);
+        const isColor = await checkIfColorImage(dataURL);
+        setIsColorImage2(isColor);
+        setSelectedChannel("rgb");
+        setRoi2(null);
+        if (!isColor) {
+          setUploadedImage2(dataURL);
+          setProcessedImage2File(file);
+        } else {
+          setUploadedImage2(dataURL);
+        }
+      } else {
+        setUploadedImage1(dataURL);
+        setRoi1(null);
+        setImage1File(file);
+      }
+    };
+    reader.readAsDataURL(file);
+
+    if (isSecondImage) {
+      setImage2File(file);
+    } else {
+      setImage1File(file);
+    }
+
+    e.target.value = null;
+  };
+
+  useEffect(() => {
+    if (uploadedImage2) {
+      const handleExternalImageUpdate = async () => {
+        setOriginalImage2DataURL(uploadedImage2);
+        const isColor = await checkIfColorImage(uploadedImage2);
+        setIsColorImage2(isColor);
+        setSelectedChannel("rgb");
+        setRoi2(null);
+        if (!isColor) {
+          setProcessedImage2File(image2File);
+        } else {
+          setUploadedImage2(uploadedImage2);
+        }
+      };
+      handleExternalImageUpdate();
+    }
+  }, [uploadedImage2, image2File]);
+
+  useEffect(() => {
+    if (isColorImage2 && selectedChannel && originalImage2DataURL) {
+      convertToGrayscale(originalImage2DataURL, selectedChannel).then(
+        ({ dataURL, file }) => {
+          setImage2_gray(dataURL);
+          setIsDefault(dataURL);
+          setProcessedImage2File(file);
+          setRoi2(null);
+        }
+      );
+    }
+  }, [isColorImage2, selectedChannel, originalImage2DataURL]);
+
+  useEffect(() => {
+    setImage2_gray("");
+    setIsDefault(uploadedImage2);
+  }, [setUploadedImage2]);
+
+  // Initialize canvas with ROI
+  const initCanvas = (imgRef, canvasRef, imageNum) => {
+    const canvas = canvasRef.current;
+    const img = imgRef.current;
+    if (img && canvas) {
+      canvas.width = img.offsetWidth;
+      canvas.height = img.offsetHeight;
+
+      // Store natural dimensions
+      if (imageNum === 1) {
+        setImage1Dimensions({
+          naturalWidth: img.naturalWidth,
+          naturalHeight: img.naturalHeight,
+          displayWidth: img.offsetWidth,
+          displayHeight: img.offsetHeight,
+        });
+      } else if (imageNum === 2) {
+        setImage2Dimensions({
+          naturalWidth: img.naturalWidth,
+          naturalHeight: img.naturalHeight,
+          displayWidth: img.offsetWidth,
+          displayHeight: img.offsetHeight,
+        });
+      }
+
+      // Draw existing ROI if available
+      const roi = imageNum === 1 ? roi1 : roi2;
+      if (roi && img.naturalWidth > 0) {
+        const scaleX = img.offsetWidth / img.naturalWidth;
+        const scaleY = img.offsetHeight / img.naturalHeight;
+
+        const displayRoi = {
+          x: roi.x * scaleX,
+          y: roi.y * scaleY,
+          width: roi.width * scaleX,
+          height: roi.height * scaleY,
+        };
+
+        drawRoiOnCanvas(canvas, displayRoi);
+      }
+    }
+  };
+
+  // Helper function to draw ROI on canvas
+// Update drawRoiOnCanvas function to round dimensions
+const drawRoiOnCanvas = (canvas, roi, color = "#ff0000") => {
+  if (!canvas || !roi) return;
+  const ctx = canvas.getContext("2d");
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  
+  // Round dimensions to integers
+  const roundedRoi = {
+    x: Math.round(roi.x),
+    y: Math.round(roi.y),
+    width: Math.round(roi.width),
+    height: Math.round(roi.height)
+  };
+
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 2;
+  ctx.strokeRect(roundedRoi.x, roundedRoi.y, roundedRoi.width, roundedRoi.height);
+  
+  ctx.fillStyle = color;
+  const fontSize = canvas.width > 500 ? "16px" : "12px";
+  ctx.font = `${fontSize} Arial`;
+  
+  // Display rounded dimensions
+  ctx.fillText(
+    `${roundedRoi.width}x${roundedRoi.height}`,
+    roundedRoi.x + roundedRoi.width / 2 - 30,
+    roundedRoi.y + roundedRoi.height / 2
+  );
+};
+
+  // Initialize modal canvas
+  const initModalCanvas = () => {
+    const canvas = modalCanvasRef.current;
+    const img = modalImgRef.current;
+    if (img && canvas) {
+      canvas.width = img.offsetWidth;
+      canvas.height = img.offsetHeight;
+
+      // Draw existing ROI if available
+      const existingRoi =
+        expandedForROI === "image1"
+          ? tempRoi.roi1 || roi1
+          : tempRoi.roi2 || roi2;
+
+      if (existingRoi) {
+        const imgDimensions =
+          expandedForROI === "image1" ? image1Dimensions : image2Dimensions;
+
+        if (imgDimensions.naturalWidth > 0) {
+          const scaleX = img.offsetWidth / imgDimensions.naturalWidth;
+          const scaleY = img.offsetHeight / imgDimensions.naturalHeight;
+
+          const displayRoi = {
+            x: existingRoi.x * scaleX,
+            y: existingRoi.y * scaleY,
+            width: existingRoi.width * scaleX,
+            height: existingRoi.height * scaleY,
+          };
+
+          drawRoiOnCanvas(canvas, displayRoi);
+        }
+      }
+    }
+  };
+
+  const startDrawingRect = (e, canvasRef, setRoi, imageNum) => {
+    e.stopPropagation();
+    e.preventDefault();
+    if (!uploadedImage1 || !uploadedImage2) return;
+    const canvas = canvasRef.current;
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    setStartPos({ x, y });
+    setIsDrawing(true);
+    setCurrentImage(imageNum);
+    const ctx = canvas.getContext("2d");
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+  };
+
+  const handleModalMouseDown = (e) => {
+    e.stopPropagation();
+    e.preventDefault();
+    const canvas = modalCanvasRef.current;
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    setModalStartPos({ x, y });
+    setIsModalDrawing(true);
+
+    // Clear canvas
+    const ctx = canvas.getContext("2d");
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+  };
+
+  const handleModalMouseMove = (e) => {
+    if (!isModalDrawing) return;
+    e.preventDefault();
+    const canvas = modalCanvasRef.current;
+    const rect = canvas.getBoundingClientRect();
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
+    const ctx = canvas.getContext("2d");
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.strokeStyle = "#00ff00";
+    ctx.lineWidth = 2;
+    ctx.strokeRect(
+      modalStartPos.x,
+      modalStartPos.y,
+      mouseX - modalStartPos.x,
+      mouseY - modalStartPos.y
+    );
+
+    const width = Math.abs(mouseX - modalStartPos.x);
+    const height = Math.abs(mouseY - modalStartPos.y);
+    ctx.fillStyle = "#00ff00";
+    ctx.font = "16px Arial";
+    ctx.fillText(
+      `${width}x${height}`,
+      modalStartPos.x + width / 2 - 30,
+      modalStartPos.y + height / 2
+    );
+  };
+
+  const handleModalMouseUp = (e) => {
+    if (!isModalDrawing) return;
+    e.preventDefault();
+    const canvas = modalCanvasRef.current;
+    const rect = canvas.getBoundingClientRect();
+    const endX = e.clientX - rect.left;
+    const endY = e.clientY - rect.top;
+
+    const x = Math.min(modalStartPos.x, endX);
+    const y = Math.min(modalStartPos.y, endY);
+    const width = Math.abs(endX - modalStartPos.x);
+    const height = Math.abs(endY - modalStartPos.y);
+
+    if (width > 2 && height > 2) {
+      const roi = { x, y, width, height };
+      setModalRoi(roi);
+
+      const ctx = canvas.getContext("2d");
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.strokeStyle = "#ff0000";
+      ctx.lineWidth = 2;
+      ctx.strokeRect(x, y, width, height);
+      ctx.fillStyle = "#ff0000";
+      ctx.font = "16px Arial";
+      ctx.fillText(`${width}x${height}`, x + width / 2 - 30, y + height / 2);
+    }
+
+    setIsModalDrawing(false);
+  };
+
+  // Save ROI from modal
+  const saveModalROI = () => {
+    if (modalRoi) {
+      const img = modalImgRef.current;
+      const imgDimensions =
+        expandedForROI === "image1" ? image1Dimensions : image2Dimensions;
+
+      if (img && imgDimensions.naturalWidth > 0) {
+        // Convert modal ROI to natural dimensions
+        const scaleX = imgDimensions.naturalWidth / img.offsetWidth;
+        const scaleY = imgDimensions.naturalHeight / img.offsetHeight;
+
+        const naturalRoi = {
+          x: Math.round(modalRoi.x * scaleX),
+          y: Math.round(modalRoi.y * scaleY),
+          width: Math.round(modalRoi.width * scaleX),
+          height: Math.round(modalRoi.height * scaleY),
+        };
+
+        if (expandedForROI === "image1") {
+          setRoi1(naturalRoi);
+          setTempRoi({ ...tempRoi, roi1: naturalRoi });
+
+          // Update main canvas immediately
+          if (canvasRef1.current && imgRef1.current) {
+            const img = imgRef1.current;
+            const scaleX = img.offsetWidth / imgDimensions.naturalWidth;
+            const scaleY = img.offsetHeight / imgDimensions.naturalHeight;
+
+            const displayRoi = {
+              x: naturalRoi.x * scaleX,
+              y: naturalRoi.y * scaleY,
+              width: naturalRoi.width * scaleX,
+              height: naturalRoi.height * scaleY,
+            };
+
+            drawRoiOnCanvas(canvasRef1.current, displayRoi);
+          }
+        } else {
+          setRoi2(naturalRoi);
+          setTempRoi({ ...tempRoi, roi2: naturalRoi });
+
+          // Update main canvas immediately
+          if (canvasRef2.current && imgRef2.current) {
+            const img = imgRef2.current;
+            const scaleX = img.offsetWidth / imgDimensions.naturalWidth;
+            const scaleY = img.offsetHeight / imgDimensions.naturalHeight;
+
+            const displayRoi = {
+              x: naturalRoi.x * scaleX,
+              y: naturalRoi.y * scaleY,
+              width: naturalRoi.width * scaleX,
+              height: naturalRoi.height * scaleY,
+            };
+
+            drawRoiOnCanvas(canvasRef2.current, displayRoi);
+          }
+        }
+      }
+    }
+    setExpandedForROI(null);
+  };
+
+  const drawRect = (e, canvasRef) => {
+    if (!isDrawing || currentImage === null) return;
+    e.preventDefault();
+    const canvas = canvasRef.current;
+    const rect = canvas.getBoundingClientRect();
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
+    const ctx = canvas.getContext("2d");
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.strokeStyle = "#00ff00";
+    ctx.lineWidth = 2;
+    ctx.strokeRect(
+      startPos.x,
+      startPos.y,
+      mouseX - startPos.x,
+      mouseY - startPos.y
+    );
+    const width = Math.abs(mouseX - startPos.x);
+    const height = Math.abs(mouseY - startPos.y);
+    ctx.fillStyle = "#00ff00";
+    ctx.font = "12px Arial";
+    ctx.fillText(
+      `${width}x${height}`,
+      startPos.x + width / 2 - 20,
+      startPos.y + height / 2
+    );
+  };
+
+  // Finish drawing in main view
+  const finishDrawingRect = (e, canvasRef, setRoi, imageNum) => {
+    if (!isDrawing || currentImage === null) return;
+    e.preventDefault();
+    const canvas = canvasRef.current;
+    const rect = canvas.getBoundingClientRect();
+    const endX = e.clientX - rect.left;
+    const endY = e.clientY - rect.top;
+    const x = Math.min(startPos.x, endX);
+    const y = Math.min(startPos.y, endY);
+    const width = Math.abs(endX - startPos.x);
+    const height = Math.abs(endY - startPos.y);
+
+    if (width > 2 && height > 2) {
+      // Get natural dimensions
+      const img = imageNum === 1 ? imgRef1.current : imgRef2.current;
+      if (!img) return;
+
+      const scaleX = img.naturalWidth / img.offsetWidth;
+      const scaleY = img.naturalHeight / img.offsetHeight;
+
+      const naturalRoi = {
+        x: Math.round(x * scaleX),
+        y: Math.round(y * scaleY),
+        width: Math.round(width * scaleX),
+        height: Math.round(height * scaleY),
+      };
+
+      setRoi(naturalRoi);
+
+      // Draw ROI on canvas
+      drawRoiOnCanvas(canvas, { x, y, width, height });
+
+      // Update dimensions state
+      if (imageNum === 1) {
+        setImage1Dimensions({
+          naturalWidth: img.naturalWidth,
+          naturalHeight: img.naturalHeight,
+          displayWidth: img.offsetWidth,
+          displayHeight: img.offsetHeight,
+        });
+      } else {
+        setImage2Dimensions({
+          naturalWidth: img.naturalWidth,
+          naturalHeight: img.naturalHeight,
+          displayWidth: img.offsetWidth,
+          displayHeight: img.offsetHeight,
+        });
+      }
+    } else {
+      const ctx = canvas.getContext("2d");
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    }
+    setIsDrawing(false);
+    setCurrentImage(null);
+  };
+
+  const downloadAsBMP = async () => {
+    if (!expandedImage) return;
+    try {
+      const response = await fetch(expandedImage);
+      const blob = await response.blob();
+      const img = new Image();
+      img.src = URL.createObjectURL(blob);
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        canvas.width = img.width;
+        canvas.height = img.height;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(img, 0, 0);
+        const bmpData = canvasToBMP(canvas);
+        const blob = new Blob([bmpData], { type: "image/bmp" });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        let filename = "blended_result.bmp";
+        if (type === "multiple") {
+          if (expandedImage.includes("phase_contrast"))
+            filename = "phase_contrast.bmp";
+          else if (expandedImage.includes("bright_field"))
+            filename = "bright_field.bmp";
+          else if (expandedImage.includes("dark_field"))
+            filename = "dark_field.bmp";
+        }
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+      };
+    } catch (error) {
+      console.error("Error downloading image:", error);
+      setErrorMessage("Failed to download image");
+      setShowAlert(true);
+    }
+  };
+
+  const canvasToBMP = (canvas) => {
+    const width = canvas.width;
+    const height = canvas.height;
+    const ctx = canvas.getContext("2d");
+    const imageData = ctx.getImageData(0, 0, width, height);
+    const data = imageData.data;
+    const fileSize = 54 + width * height * 3;
+    const header = new ArrayBuffer(54);
+    const view = new DataView(header);
+    view.setUint8(0, 0x42); // 'B'
+    view.setUint8(1, 0x4d); // 'M'
+    view.setUint32(2, fileSize, true);
+    view.setUint32(6, 0, true);
+    view.setUint32(10, 54, true);
+    view.setUint32(14, 40, true);
+    view.setInt32(18, width, true);
+    view.setInt32(22, -height, true);
+    view.setUint16(26, 1, true);
+    view.setUint16(28, 24, true);
+    view.setUint32(30, 0, true);
+    view.setUint32(34, 0, true);
+    view.setInt32(38, 2835, true);
+    view.setInt32(42, 2835, true);
+    view.setUint32(46, 0, true);
+    view.setUint32(50, 0, true);
+    const pixelData = new Uint8Array(width * height * 3);
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        const i = (y * width + x) * 4;
+        const p = (y * width + x) * 3;
+        pixelData[p] = data[i + 2]; // B
+        pixelData[p + 1] = data[i + 1]; // G
+        pixelData[p + 2] = data[i]; // R
+      }
+    }
+    const bmp = new Uint8Array(fileSize);
+    bmp.set(new Uint8Array(header), 0);
+    bmp.set(pixelData, 54);
+    return bmp;
+  };
+
+  const handleBlendImages = async () => {
+    if (!uploadedImage1 || !uploadedImage2 || !roi1 || !roi2) {
+      setErrorMessage("Please upload both images and select ROIs");
+      setShowAlert(true);
+      return;
+    }
+    if (isColorImage2 && !selectedChannel) {
+      setErrorMessage("Please select a color channel for the color image");
+      setShowAlert(true);
+      return;
+    }
+    if (profile.credit < 1) {
+      setErrorMessage("Insufficient credits to perform blending");
+      setShowAlert(true);
+      return;
+    }
+    setIsBlending(true);
+    try {
+      const img1 = imgRef1.current;
+      const img2 = imgRef2.current;
+
+      // REMOVE THIS SCALING LOGIC - coordinates are already natural
+      // const scaleX1 = img1.naturalWidth / img1.offsetWidth;
+      // const scaleY1 = img1.naturalHeight / img1.offsetHeight;
+      // const scaleX2 = img2.naturalWidth / img2.offsetWidth;
+      // const scaleY2 = img2.naturalHeight / img2.offsetHeight;
+
+      // Use stored natural coordinates directly
+      const naturalRoi1 = {
+        x: roi1.x,
+        y: roi1.y,
+        width: roi1.width,
+        height: roi1.height,
+      };
+
+      const naturalRoi2 = {
+        x: roi2.x,
+        y: roi2.y,
+        width: roi2.width,
+        height: roi2.height,
+      };
+
+      console.log("Natural ROI 1:", naturalRoi1);
+      console.log(
+        "Image 1 Natural Dimensions:",
+        img1.naturalWidth,
+        "x",
+        img1.naturalHeight
+      );
+      console.log("Natural ROI 2:", naturalRoi2);
+      console.log(
+        "Image 2 Natural Dimensions:",
+        img2.naturalWidth,
+        "x",
+        img2.naturalHeight
+      );
+
+      const uniqueCode = Math.floor(
+        100000000000 + Math.random() * 900000000000
+      ).toString();
+      const formData = new FormData();
+      formData.append("image1", image1File);
+      formData.append("image2", processedImage2File || image2File);
+      formData.append("unique_code", uniqueCode);
+      formData.append("type", type);
+      formData.append(
+        "image1_coordinates",
+        JSON.stringify({
+          x1: naturalRoi1.x,
+          y1: naturalRoi1.y,
+          x2: naturalRoi1.x + naturalRoi1.width,
+          y2: naturalRoi1.y + naturalRoi1.height,
+          naturalWidth: img1.naturalWidth,
+          naturalHeight: img1.naturalHeight,
+          displayWidth: img1.offsetWidth,
+          displayHeight: img1.offsetHeight,
+        })
+      );
+
+      formData.append(
+        "image2_coordinates",
+        JSON.stringify({
+          x1: naturalRoi2.x,
+          y1: naturalRoi2.y,
+          x2: naturalRoi2.x + naturalRoi2.width,
+          y2: naturalRoi2.y + naturalRoi2.height,
+          naturalWidth: img2.naturalWidth,
+          naturalHeight: img2.naturalHeight,
+          displayWidth: img2.offsetWidth,
+          displayHeight: img2.offsetHeight,
+        })
+      );
+      formData.append(
+        "display_dimensions1",
+        JSON.stringify({
+          width: img1.offsetWidth,
+          height: img1.offsetHeight,
+        })
+      );
+      formData.append(
+        "display_dimensions2",
+        JSON.stringify({
+          width: img2.offsetWidth,
+          height: img2.offsetHeight,
+        })
+      );
+      const token = localStorage.getItem("authToken");
+      const response = await axios.post(
+        `${BACKEND_URL}/api/blend-images/`,
+        formData,
+        {
+          headers: {
+            "Content-Type": "multipart/form-data",
+            Authorization: `Token ${token}`,
+          },
+        }
+      );
+      if (response.data.success) {
+        setBlendedResult(response.data.blended_image);
+        if (type === "multiple") {
+          set_bright_field(response.data.bright_field);
+          set_dark_field(response.data.dark_field);
+          set_phase_contrast(response.data.phase_contrast);
+        }
+      } else {
+        throw new Error(response.data.message || "Failed to blend images");
+      }
+    } catch (error) {
+      console.error("Error blending images:", error);
+      setErrorMessage(
+        error.message || "Failed to blend images. Please try again."
+      );
+      setShowAlert(true);
+    } finally {
+      setIsBlending(false);
+    }
+  };
+
+  const expandImage = (imageSrc) => {
+    const images = [`${BACKEND_URL}/${blendedResult}`];
+    if (type === "multiple") {
+      images.push(
+        `${BACKEND_URL}/${phase_contrast}`,
+        `${BACKEND_URL}/${bright_field}`,
+        `${BACKEND_URL}/${dark_field}`
+      );
+    }
+    const index = images.findIndex((img) => img === imageSrc);
+    setAllImages(images);
+    setCurrentImageIndex(index >= 0 ? index : 0);
+    setExpandedImage(imageSrc);
+  };
+
+  const navigateImage = (direction) => {
+    if (!allImages.length) return;
+    let newIndex;
+    if (direction === "next") {
+      newIndex = (currentImageIndex + 1) % allImages.length;
+    } else {
+      newIndex = (currentImageIndex - 1 + allImages.length) % allImages.length;
+    }
+    setCurrentImageIndex(newIndex);
+    setExpandedImage(allImages[newIndex]);
+  };
+
+  const handleKeyDown = (e) => {
+    if (expandedImage) {
+      if (e.key === "ArrowRight") {
+        e.preventDefault();
+        navigateImage("next");
+      } else if (e.key === "ArrowLeft") {
+        e.preventDefault();
+        navigateImage("prev");
+      } else if (e.key === "Escape") {
+        e.preventDefault();
+        closeModal();
+      }
+    }
+  };
+
+  useEffect(() => {
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [expandedImage, currentImageIndex, allImages]);
+
+  const closeModal = () => {
+    setExpandedImage(null);
+  };
+
+  return (
+    <div className="p-4 ml-28 dark:bg-[#1a1a1a] bg-white rounded-lg shadow-lg">
+      <h2 className="text-xl font-bold mb-4 dark:text-white text-gray-800">
+        Renderer
+      </h2>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+        {/* Image 1 Upload and Canvas */}
+        {/* Image 1 */}
+        <div className="border dark:border-gray-600 border-gray-300 rounded-lg p-2">
+          <div className="relative">
+            <label
+              className="flex flex-col items-center justify-center p-4 border rounded-md cursor-pointer dark:hover:bg-neutral-700 hover:bg-gray-300 transition duration-300 dark:border-gray-500 dark:bg-neutral-800 dark:text-gray-400 border-indigo-300 bg-gray-100 text-gray-900"
+              onMouseDown={(e) => {
+                if (uploadedImage1) e.preventDefault();
+              }}
+            >
+              {uploadedImage1 ? (
+                <div className="relative">
+                  <img
+                    ref={imgRef1}
+                    src={uploadedImage1}
+                    alt="Uploaded 1"
+                    className="max-h-96 w-auto object-contain rounded-md"
+                    onLoad={() => initCanvas(imgRef1, canvasRef1, 1)}
+                  />
+                  <canvas
+                    ref={canvasRef1}
+                    className="absolute top-0 left-0 w-full h-full cursor-crosshair"
+                    onMouseDown={(e) =>
+                      startDrawingRect(e, canvasRef1, setRoi1, 1)
+                    }
+                    onMouseMove={(e) => drawRect(e, canvasRef1)}
+                    onMouseUp={(e) =>
+                      finishDrawingRect(e, canvasRef1, setRoi1, 1)
+                    }
+                    onMouseLeave={(e) =>
+                      finishDrawingRect(e, canvasRef1, setRoi1, 1)
+                    }
+                  />
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setTempRoi({ ...tempRoi, roi1: roi1 });
+                    }}
+                    className="absolute top-2 right-2 bg-black bg-opacity-50 text-white p-1 rounded-full hover:bg-opacity-70"
+                  >
+                    <AiOutlineExpand
+                      size={20}
+                      onClick={(e) => {
+                        setExpandedForROI("image1");
+                      }}
+                    />
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <AiOutlineCloudUpload className="h-12 w-12 dark:text-gray-500 text-indigo-600" />
+                  <span className="text-sm mt-2 dark:text-gray-500 text-indigo-600">
+                    Click to upload Raw Image
+                  </span>
+                </>
+              )}
+              <input
+                type="file"
+                accept="image/*"
+                onChange={(e) => handleImageUpload(e, false)}
+                className="hidden"
+              />
+            </label>
+          </div>
+          {roi1 && (
+            <div className="mt-2 text-xs dark:text-gray-300 text-center">
+              ROI: {roi1.width}x{roi1.height}
+            </div>
+          )}
+        </div>
+
+        {/* Image 2 */}
+        <div className="border dark:border-gray-600 border-gray-300 rounded-lg p-2">
+          <div className="relative">
+            <label
+              className="flex flex-col items-center justify-center p-4 border rounded-md cursor-pointer dark:hover:bg-neutral-700 hover:bg-gray-300 transition duration-300 dark:border-gray-500 dark:bg-neutral-800 dark:text-gray-400 border-indigo-300 bg-gray-100 text-gray-900"
+              onMouseDown={(e) => {
+                if (uploadedImage2) e.preventDefault();
+              }}
+            >
+              {isPdfLoading ? (
+                <div className="flex flex-col items-center justify-center h-64">
+                  <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-500"></div>
+                  <p className="mt-4 text-gray-700 dark:text-gray-300">
+                    Loading PDF...
+                  </p>
+                </div>
+              ) : uploadedImage2 ? (
+                <div className="relative">
+                  <img
+                    ref={imgRef2}
+                    src={isDefault || uploadedImage2}
+                    alt="Uploaded 2"
+                    className="max-h-96 w-auto object-contain rounded-md"
+                    onLoad={() => initCanvas(imgRef2, canvasRef2, 2)}
+                  />
+                  <canvas
+                    ref={canvasRef2}
+                    className="absolute top-0 left-0 w-full h-full cursor-crosshair"
+                    onMouseDown={(e) =>
+                      startDrawingRect(e, canvasRef2, setRoi2, 2)
+                    }
+                    onMouseMove={(e) => drawRect(e, canvasRef2)}
+                    onMouseUp={(e) =>
+                      finishDrawingRect(e, canvasRef2, setRoi2, 2)
+                    }
+                    onMouseLeave={(e) =>
+                      finishDrawingRect(e, canvasRef2, setRoi2, 2)
+                    }
+                  />
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setTempRoi({ ...tempRoi, roi2: roi2 });
+                    }}
+                    className="absolute top-2 right-2 bg-black bg-opacity-50 text-white p-1 rounded-full hover:bg-opacity-70"
+                  >
+                    <AiOutlineExpand
+                      size={20}
+                      onClick={(e) => {
+                        setExpandedForROI("image2");
+                      }}
+                    />
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <AiOutlineCloudUpload className="h-12 w-12 dark:text-gray-500 text-indigo-600" />
+                  <span className="text-sm mt-2 dark:text-gray-500 text-indigo-600">
+                    Click to upload Photo Image or PDF
+                  </span>
+                </>
+              )}
+              <input
+                type="file"
+                accept="image/*,.pdf"
+                onChange={(e) => handleImageUpload(e, true)}
+                className="hidden"
+              />
+            </label>
+          </div>
+
+          {/* PDF page selector */}
+          {isPdf && totalPages > 0 && (
+            <div className="mt-3 flex items-center justify-center">
+              <button
+                onClick={() => handlePageChange(currentPage - 1)}
+                disabled={currentPage <= 1}
+                className="px-3 py-1 bg-gray-200 dark:bg-gray-700 rounded-l-md disabled:opacity-50"
+              >
+                &lt;
+              </button>
+              <div className="px-4 py-1 bg-gray-100 dark:bg-gray-800">
+                Page {currentPage} of {totalPages}
+              </div>
+              <button
+                onClick={() => handlePageChange(currentPage + 1)}
+                disabled={currentPage >= totalPages}
+                className="px-3 py-1 bg-gray-200 dark:bg-gray-700 rounded-r-md disabled:opacity-50"
+              >
+                &gt;
+              </button>
+
+              <div className="ml-4">
+                <input
+                  type="number"
+                  min="1"
+                  max={totalPages}
+                  value={currentPage}
+                  onChange={(e) => handlePageChange(parseInt(e.target.value))}
+                  className="w-16 p-1 border rounded dark:bg-gray-700 dark:text-white"
+                />
+              </div>
+            </div>
+          )}
+
+          {roi2 && (
+            <div className="mt-2 text-xs dark:text-gray-300 text-center">
+              ROI: {roi2.width}x{roi2.height}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {isColorImage2 && (
+        <div className="my-4 p-4 rounded-xl bg-gradient-to-br from-indigo-50 to-blue-50 dark:from-neutral-900/30 dark:to-neutral-900/30 border border-indigo-100 dark:border-indigo-800/50 shadow-sm transition-all duration-300 hover:shadow-md">
+          <div className="flex items-start gap-3">
+            <div className="mt-0.5 p-2 rounded-lg bg-indigo-100 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-300">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                className="h-5 w-5"
+                viewBox="0 0 20 20"
+                fill="currentColor"
+              >
+                <path
+                  fillRule="evenodd"
+                  d="M3 5a2 2 0 012-2h10a2 2 0 012 2v10a2 2 0 01-2 2H5a2 2 0 01-2-2V5zm11 1H6v8l4-2 4 2V6z"
+                  clipRule="evenodd"
+                />
+              </svg>
+            </div>
+
+            <div className="flex-1">
+              <h3 className="font-semibold text-indigo-700 dark:text-indigo-300 flex items-center gap-2">
+                Color Channel Selection
+                <span className="px-2 py-0.5 text-xs font-medium bg-indigo-100 dark:bg-indigo-800/60 text-indigo-700 dark:text-indigo-200 rounded-full">
+                  Grayscale Conversion
+                </span>
+              </h3>
+              <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
+                Select which color channel to use for grayscale conversion
+              </p>
+
+              <div className="mt-3 relative">
+                <select
+                  value={selectedChannel}
+                  onChange={(e) => setSelectedChannel(e.target.value)}
+                  className="w-full pl-4 pr-10 py-3 text-sm rounded-lg bg-white dark:bg-neutral-800 border-0 shadow-sm ring-1 ring-gray-300 dark:ring-gray-600 focus:ring-2 focus:ring-indigo-500 focus:outline-none appearance-none transition-all"
+                >
+                  <option value="rgb">RGB channel</option>
+                  <option value="red" className="flex items-center">
+                    <span className="w-3 h-3 rounded-full bg-red-500 mr-2"></span>
+                    Red Channel
+                  </option>
+                  <option value="green">
+                    <span className="w-3 h-3 rounded-full bg-green-500 mr-2"></span>
+                    Green Channel
+                  </option>
+                  <option value="blue">
+                    <span className="w-3 h-3 rounded-full bg-blue-500 mr-2"></span>
+                    Blue Channel
+                  </option>
+                </select>
+
+                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-500 dark:text-gray-400">
+                  <svg
+                    className="h-5 w-5"
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 20 20"
+                    fill="currentColor"
+                  >
+                    <path
+                      fillRule="evenodd"
+                      d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Blend Button */}
+      <button
+        onClick={handleBlendImages}
+        disabled={
+          !uploadedImage1 ||
+          !uploadedImage2 ||
+          !roi1 ||
+          !roi2 ||
+          isBlending ||
+          (isColorImage2 && !selectedChannel)
+        }
+        className="w-full bg-gradient-to-r from-purple-600 to-blue-500 hover:from-purple-700 hover:to-blue-600 text-white font-bold py-2 px-4 rounded flex items-center justify-center transition duration-200 disabled:opacity-50"
+      >
+        {isBlending ? (
+          <>
+            <svg
+              className="animate-spin -ml-1 mr-3 h-5 w-5 text-white"
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+            >
+              <circle
+                className="opacity-25"
+                cx="12"
+                cy="12"
+                r="10"
+                stroke="currentColor"
+                strokeWidth="4"
+              ></circle>
+              <path
+                className="opacity-75"
+                fill="currentColor"
+                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+              ></path>
+            </svg>
+            Rendering...
+          </>
+        ) : (
+          <>
+            <SiCoronarenderer className="h-4 w-4 mx-2" />
+            Render Images
+          </>
+        )}
+      </button>
+
+      {blendedResult && (
+        <section className=" ">
+          <div className=" flex flex-wrap ">
+            <div className="m-4">
+              <h3 className="text-lg font-semibold dark:text-white">
+                Rendered Image ( Single Spot )
+              </h3>
+              <div className="relative">
+                <img
+                  src={`${BACKEND_URL}/${blendedResult}`}
+                  alt="Blended result"
+                  className="max-h-96 w-auto object-contain rounded-md border dark:border-gray-600"
+                />
+                <button
+                  onClick={() => expandImage(`${BACKEND_URL}/${blendedResult}`)}
+                  className="absolute top-2 right-2 bg-black bg-opacity-50 text-white p-1 rounded-full hover:bg-opacity-70"
+                >
+                  <AiOutlineExpand size={20} />
+                </button>
+              </div>
+            </div>
+            {type === "multiple" && (
+              <div className="m-4">
+                <h3 className="text-lg font-semibold dark:text-white">
+                  Phase Contrast
+                </h3>
+                <div className="relative">
+                  <img
+                    src={`${BACKEND_URL}/${phase_contrast}`}
+                    alt="Blended result"
+                    className="max-h-96 w-auto object-contain rounded-md border dark:border-gray-600"
+                  />
+                  <button
+                    onClick={() =>
+                      expandImage(`${BACKEND_URL}/${phase_contrast}`)
+                    }
+                    className="absolute top-2 right-2 bg-black bg-opacity-50 text-white p-1 rounded-full hover:bg-opacity-70"
+                  >
+                    <AiOutlineExpand size={20} />
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+          {type === "multiple" && (
+            <div className=" flex flex-wrap ">
+              <div className="m-4">
+                <h3 className="text-lg font-semibold dark:text-white">
+                  Bright Field
+                </h3>
+                <div className="relative">
+                  <img
+                    src={`${BACKEND_URL}/${bright_field}`}
+                    alt="Blended result"
+                    className="max-h-96 w-auto object-contain rounded-md border dark:border-gray-600"
+                  />
+                  <button
+                    onClick={() =>
+                      expandImage(`${BACKEND_URL}/${bright_field}`)
+                    }
+                    className="absolute top-2 right-2 bg-black bg-opacity-50 text-white p-1 rounded-full hover:bg-opacity-70"
+                  >
+                    <AiOutlineExpand size={20} />
+                  </button>
+                </div>
+              </div>
+              <div className="m-4">
+                <h3 className="text-lg font-semibold dark:text-white">
+                  Dark Field
+                </h3>
+                <div className="relative">
+                  <img
+                    src={`${BACKEND_URL}/${dark_field}`}
+                    alt="Blended result"
+                    className="max-h-96 w-auto object-contain rounded-md border dark:border-gray-600"
+                  />
+                  <button
+                    onClick={() => expandImage(`${BACKEND_URL}/${dark_field}`)}
+                    className="absolute top-2 right-2 bg-black bg-opacity-50 text-white p-1 rounded-full hover:bg-opacity-70"
+                  >
+                    <AiOutlineExpand size={20} />
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </section>
+      )}
+
+      {/* ROI Drawing Modal */}
+      <Modal
+        isOpen={!!expandedForROI}
+        onRequestClose={() => setExpandedForROI(null)}
+        className=" bg-neutral-900 w-3/4 mx-auto mt-5 h-[95vh] "
+        overlayClassName="modal-overlay"
+      >
+        <div className="relative flex flex-col items-center max-h-[94vh] ">
+          <div className=" flex border-b w-full my-2 ">
+            <h2 className=" text-lg mx-auto text-gray-300 font-bold mb-2 dark:text-white">
+              Draw ROI on{" "}
+              {expandedForROI === "image1" ? "Raw Image" : "Photo Image"}
+            </h2>
+
+            <button
+              onClick={saveModalROI}
+              className="absolute right-6 h-8 w-8 flex items-center justify-center text-gray-300  hover:text-white  font-extrabold rounded-full cursor-pointer hover:rotate-45 transition-transform duration-200"
+            >
+              ✕
+            </button>
+          </div>
+
+          <div className="relative border-2 border-blue-400 rounded-lg overflow-auto">
+            {expandedForROI === "image1" && uploadedImage1 && (
+              <img
+                src={uploadedImage1}
+                alt="Full size Raw Image"
+                className="max-h-[85vh] max-w-full object-contain"
+                ref={modalImgRef}
+                onLoad={initModalCanvas}
+              />
+            )}
+            {expandedForROI === "image2" && (uploadedImage2 || isDefault) && (
+              <img
+                src={isDefault || uploadedImage2}
+                alt="Full size Photo Image"
+                className="max-h-[85vh] max-w-full object-contain"
+                ref={modalImgRef}
+                onLoad={initModalCanvas}
+              />
+            )}
+            <canvas
+              ref={modalCanvasRef}
+              className="absolute top-0 left-0 w-full h-full cursor-crosshair"
+              onMouseDown={handleModalMouseDown}
+              onMouseMove={handleModalMouseMove}
+              onMouseUp={handleModalMouseUp}
+              onMouseLeave={handleModalMouseUp}
+            />
+          </div>
+
+          {/* <div className="mt-4 flex justify-center space-x-4">
+            <button
+              onClick={saveModalROI}
+              className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+            >
+              Save ROI
+            </button>
+            <button
+              onClick={() => setExpandedForROI(null)}
+              className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600"
+            >
+              Cancel
+            </button>
+          </div> */}
+        </div>
+      </Modal>
+
+      {/* Image Expansion Modal */}
+      <Modal
+        isOpen={!!expandedImage}
+        onRequestClose={closeModal}
+        contentLabel="Expanded Image"
+        className="modal"
+        overlayClassName="modal-overlay"
+      >
+        <div className="relative h-full w-full flex items-center justify-center">
+          {allImages.length > 1 && (
+            <button
+              onClick={() => navigateImage("prev")}
+              className="absolute left-4 bg-black bg-opacity-50 text-white p-4 rounded-full hover:bg-opacity-70 z-10"
+            >
+              ←
+            </button>
+          )}
+          <img
+            src={expandedImage}
+            alt="Expanded view"
+            className="max-h-[90vh] max-w-[90vw] object-contain"
+          />
+          {allImages.length > 1 && (
+            <button
+              onClick={() => navigateImage("next")}
+              className="absolute right-4 bg-black bg-opacity-50 text-white p-4 rounded-full hover:bg-opacity-70 z-10"
+            >
+              →
+            </button>
+          )}
+          <button
+            onClick={closeModal}
+            className="absolute top-4 right-4 bg-black bg-opacity-50 text-white p-2 rounded-full hover:bg-opacity-70"
+          >
+            ✕
+          </button>
+          <button
+            onClick={downloadAsBMP}
+            className="absolute top-4 right-16 bg-black bg-opacity-50 text-white p-2 rounded-full hover:bg-opacity-70"
+            title="Download as BMP"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              className="h-5 w-5"
+              viewBox="0 0 20 20"
+              fill="currentColor"
+            >
+              <path
+                fillRule="evenodd"
+                d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z"
+                clipRule="evenodd"
+              />
+            </svg>
+          </button>
+          {allImages.length > 1 && (
+            <div className="absolute bottom-4 bg-black bg-opacity-50 text-white px-3 py-1 rounded-lg">
+              {currentImageIndex + 1} / {allImages.length}
+            </div>
+          )}
+        </div>
+      </Modal>
+
+      {/* Modal Styles */}
+      <style jsx global>{`
+        .modal {
+          position: fixed;
+          top: 50%;
+          left: 50%;
+          right: auto;
+          bottom: auto;
+          margin-right: -50%;
+          transform: translate(-50%, -50%);
+          background: #1a1a1a;
+          padding: 2rem;
+          border-radius: 0.5rem;
+          max-width: 100%;
+          max-height: 90vh;
+          overflow: auto;
+          outline: none;
+          z-index: 1001;
+        }
+
+        .modal-overlay {
+          position: fixed;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background-color: rgba(0, 0, 0, 0.75);
+          z-index: 1000;
+        }
+
+        .modal button {
+          transition: all 0.2s ease;
+        }
+
+        .modal button:hover {
+          transform: scale(1.1);
+        }
+      `}</style>
+    </div>
+  );
+};
+
+export default ImageBlending;

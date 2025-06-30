@@ -1,0 +1,14 @@
+{
+	"folders": [
+		{
+			"path": "../../../../EmageVison/Image Geeration/image-regeneration"
+		},
+		{
+			"path": "../.."
+		},
+		{
+			"path": "../../../../Learning/Pytorch_Deep Learning/Defusion_3"
+		}
+	],
+	"settings": {}
+}

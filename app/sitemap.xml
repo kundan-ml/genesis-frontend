@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset
+      xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:schemaLocation="http://www.sitemaps.org/schemas/sitemap/0.9
+            http://www.sitemaps.org/schemas/sitemap/0.9/sitemap.xsd">
+<!-- created with Free Online Sitemap Generator www.xml-sitemaps.com -->
+
+
+<url>
+  <loc>https://geniegenesis.vercel.app/</loc>
+  <lastmod>2024-09-25T07:07:38+00:00</lastmod>
+  <priority>1.00</priority>
+</url>
+<url>
+  <loc>https://geniegenesis.vercel.app/app</loc>
+  <lastmod>2024-09-25T07:07:38+00:00</lastmod>
+  <priority>0.80</priority>
+</url>
+<url>
+  <loc>https://geniegenesis.vercel.app/anomaly</loc>
+  <lastmod>2024-09-25T07:07:38+00:00</lastmod>
+  <priority>0.80</priority>
+</url>
+<url>
+  <loc>https://geniegenesis.vercel.app/tutorial</loc>
+  <lastmod>2024-09-25T07:07:38+00:00</lastmod>
+  <priority>0.80</priority>
+</url>
+<url>
+  <loc>https://geniegenesis.vercel.app/contact</loc>
+  <lastmod>2024-09-25T07:07:38+00:00</lastmod>
+  <priority>0.80</priority>
+</url>
+<url>
+  <loc>https://geniegenesis.vercel.app/profile</loc>
+  <lastmod>2024-09-25T07:07:38+00:00</lastmod>
+  <priority>0.64</priority>
+</url>
+<url>
+  <loc>https://geniegenesis.vercel.app/anomaly/training</loc>
+  <lastmod>2024-09-25T07:07:38+00:00</lastmod>
+  <priority>0.64</priority>
+</url>
+<url>
+  <loc>https://geniegenesis.vercel.app/login</loc>
+  <lastmod>2024-09-25T07:07:38+00:00</lastmod>
+  <priority>0.51</priority>
+</url>
+<url>
+  <loc>https://geniegenesis.vercel.app/billing</loc>
+  <lastmod>2024-09-25T07:07:38+00:00</lastmod>
+  <priority>0.51</priority>
+</url>
+<url>
+  <loc>https://geniegenesis.vercel.app/signin</loc>
+  <lastmod>2024-09-25T07:07:38+00:00</lastmod>
+  <priority>0.41</priority>
+</url>
+
+
+</urlset>
