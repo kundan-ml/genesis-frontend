@@ -3,6 +3,9 @@ import { AiOutlineCloudUpload, AiOutlineExpand } from "react-icons/ai";
 import { SiCoronarenderer } from "react-icons/si";
 import axios from "axios";
 import Modal from "react-modal";
+import JSZip from 'jszip';
+import { saveAs } from 'file-saver';
+
 
 const ImageBlending = ({
   setErrorMessage,
@@ -226,6 +229,45 @@ const drawRoiOnCanvas = (canvas, roi, color = "#ff0000") => {
     roundedRoi.x + roundedRoi.width / 2 - 30,
     roundedRoi.y + roundedRoi.height / 2
   );
+};
+
+// Add this function to handle downloading all images as a ZIP
+const downloadAllAsZip = async () => {
+  try {
+    const zip = new JSZip();
+    const imgFolder = zip.folder("rendered_images");
+    
+    const imagesToDownload = [];
+    
+    if (type === "multiple") {
+      imagesToDownload.push(
+        { url: `${BACKEND_URL}/${phase_contrast}`, name: "phase_contrast.bmp" },
+        { url: `${BACKEND_URL}/${bright_field}`, name: "bright_field.bmp" },
+        { url: `${BACKEND_URL}/${dark_field}`, name: "dark_field.bmp" },
+        { url: `${BACKEND_URL}/${blendedResult}`, name: "blended_result.bmp" }
+      );
+    } else {
+      imagesToDownload.push(
+        { url: `${BACKEND_URL}/${blendedResult}`, name: "blended_result.bmp" }
+      );
+    }
+
+    // Fetch all images and add them to the ZIP
+    await Promise.all(imagesToDownload.map(async (image) => {
+      const response = await fetch(image.url);
+      const blob = await response.blob();
+      imgFolder.file(image.name, blob);
+    }));
+
+    // Generate the ZIP file
+    const content = await zip.generateAsync({ type: "blob" });
+    saveAs(content, "rendered_images.zip");
+    
+  } catch (error) {
+    console.error("Error creating ZIP file:", error);
+    setErrorMessage("Failed to download images as ZIP");
+    setShowAlert(true);
+  }
 };
 
   // Initialize modal canvas
@@ -1236,68 +1278,90 @@ const drawRoiOnCanvas = (canvas, roi, color = "#ff0000") => {
         </div>
       </Modal>
 
-      {/* Image Expansion Modal */}
-      <Modal
-        isOpen={!!expandedImage}
-        onRequestClose={closeModal}
-        contentLabel="Expanded Image"
-        className="modal"
-        overlayClassName="modal-overlay"
+{/* // Update the Modal component to include the Download All as ZIP button */}
+<Modal
+  isOpen={!!expandedImage}
+  onRequestClose={closeModal}
+  contentLabel="Expanded Image"
+  className="modal"
+  overlayClassName="modal-overlay"
+>
+  <div className="relative h-full w-full flex items-center justify-center">
+    {allImages.length > 1 && (
+      <button
+        onClick={() => navigateImage("prev")}
+        className="absolute left-4 bg-black bg-opacity-50 text-white p-4 rounded-full hover:bg-opacity-70 z-10"
       >
-        <div className="relative h-full w-full flex items-center justify-center">
-          {allImages.length > 1 && (
-            <button
-              onClick={() => navigateImage("prev")}
-              className="absolute left-4 bg-black bg-opacity-50 text-white p-4 rounded-full hover:bg-opacity-70 z-10"
-            >
-              ←
-            </button>
-          )}
-          <img
-            src={expandedImage}
-            alt="Expanded view"
-            className="max-h-[90vh] max-w-[90vw] object-contain"
+        ←
+      </button>
+    )}
+    <img
+      src={expandedImage}
+      alt="Expanded view"
+      className="max-h-[90vh] max-w-[90vw] object-contain"
+    />
+    {allImages.length > 1 && (
+      <button
+        onClick={() => navigateImage("next")}
+        className="absolute right-4 bg-black bg-opacity-50 text-white p-4 rounded-full hover:bg-opacity-70 z-10"
+      >
+        →
+      </button>
+    )}
+    <button
+      onClick={closeModal}
+      className="absolute top-4 right-4 bg-black bg-opacity-50 text-white p-2 rounded-full hover:bg-opacity-70"
+    >
+      ✕
+    </button>
+    <div className="absolute top-4 right-12 flex space-x-2">
+      <button
+        onClick={downloadAsBMP}
+        className="bg-black bg-opacity-50 text-white p-2 rounded-full hover:bg-opacity-70"
+        title="Download current as BMP"
+      >
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          className="h-5 w-5"
+          viewBox="0 0 20 20"
+          fill="currentColor"
+        >
+          <path
+            fillRule="evenodd"
+            d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z"
+            clipRule="evenodd"
           />
-          {allImages.length > 1 && (
-            <button
-              onClick={() => navigateImage("next")}
-              className="absolute right-4 bg-black bg-opacity-50 text-white p-4 rounded-full hover:bg-opacity-70 z-10"
-            >
-              →
-            </button>
-          )}
-          <button
-            onClick={closeModal}
-            className="absolute top-4 right-4 bg-black bg-opacity-50 text-white p-2 rounded-full hover:bg-opacity-70"
-          >
-            ✕
-          </button>
-          <button
-            onClick={downloadAsBMP}
-            className="absolute top-4 right-16 bg-black bg-opacity-50 text-white p-2 rounded-full hover:bg-opacity-70"
-            title="Download as BMP"
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              className="h-5 w-5"
-              viewBox="0 0 20 20"
-              fill="currentColor"
-            >
-              <path
-                fillRule="evenodd"
-                d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z"
-                clipRule="evenodd"
-              />
-            </svg>
-          </button>
-          {allImages.length > 1 && (
-            <div className="absolute bottom-4 bg-black bg-opacity-50 text-white px-3 py-1 rounded-lg">
-              {currentImageIndex + 1} / {allImages.length}
-            </div>
-          )}
-        </div>
-      </Modal>
-
+        </svg>
+      </button>
+      <button
+        onClick={downloadAllAsZip}
+        className="bg-black bg-opacity-50 text-white p-2 rounded-full hover:bg-opacity-70"
+        title="Download all as ZIP"
+      >
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          className="h-5 w-5"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+          <polyline points="7 10 12 15 17 10"></polyline>
+          <line x1="12" y1="15" x2="12" y2="3"></line>
+          <path d="M17 8V5a2 2 0 0 0-2-2H9a2 2 0 0 0-2 2v3"></path>
+        </svg>
+      </button>
+    </div>
+    {allImages.length > 1 && (
+      <div className="absolute bottom-4 bg-black bg-opacity-50 text-white px-3 py-1 rounded-lg">
+        {currentImageIndex + 1} / {allImages.length}
+      </div>
+    )}
+  </div>
+</Modal>
       {/* Modal Styles */}
       <style jsx global>{`
         .modal {
