@@ -1396,6 +1396,8 @@ const ImageBlending = ({
               </button>
             </div>
 
+            
+
             {/* NEW: COLOR OUTPUT SECTION */}
             {isColorImage1 && selectedChannel1 !== "rgb" && (
               <div className="mt-6 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-700">
@@ -1504,6 +1506,73 @@ const ImageBlending = ({
               </div>
             )}
           </div>
+
+<div>
+                      {type === "multiple" && (
+              <div className="m-4">
+                <h3 className="text-lg font-semibold dark:text-white">
+                  Phase Contrast
+                </h3>
+                <div className="relative">
+                  <img
+                    src={`${BACKEND_URL}/${phase_contrast}`}
+                    alt="Blended result"
+                    className="max-h-96 w-auto object-contain rounded-md border dark:border-gray-600"
+                  />
+                  <button
+                    onClick={() =>
+                      expandImage(`${BACKEND_URL}/${phase_contrast}`)
+                    }
+                    className="absolute top-2 right-2 bg-black bg-opacity-50 text-white p-1 rounded-full hover:bg-opacity-70"
+                  >
+                    <AiOutlineExpand size={20} />
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+          {type === "multiple" && (
+            <div className=" flex flex-wrap ">
+              <div className="m-4">
+                <h3 className="text-lg font-semibold dark:text-white">
+                  Bright Field
+                </h3>
+                <div className="relative">
+                  <img
+                    src={`${BACKEND_URL}/${bright_field}`}
+                    alt="Blended result"
+                    className="max-h-96 w-auto object-contain rounded-md border dark:border-gray-600"
+                  />
+                  <button
+                    onClick={() =>
+                      expandImage(`${BACKEND_URL}/${bright_field}`)
+                    }
+                    className="absolute top-2 right-2 bg-black bg-opacity-50 text-white p-1 rounded-full hover:bg-opacity-70"
+                  >
+                    <AiOutlineExpand size={20} />
+                  </button>
+                </div>
+              </div>
+              <div className="m-4">
+                <h3 className="text-lg font-semibold dark:text-white">
+                  Dark Field
+                </h3>
+                <div className="relative">
+                  <img
+                    src={`${BACKEND_URL}/${dark_field}`}
+                    alt="Blended result"
+                    className="max-h-96 w-auto object-contain rounded-md border dark:border-gray-600"
+                  />
+                  <button
+                    onClick={() => expandImage(`${BACKEND_URL}/${dark_field}`)}
+                    className="absolute top-2 right-2 bg-black bg-opacity-50 text-white p-1 rounded-full hover:bg-opacity-70"
+                  >
+                    <AiOutlineExpand size={20} />
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </section>
       )}
 
