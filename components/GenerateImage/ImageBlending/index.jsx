@@ -3,9 +3,8 @@ import { AiOutlineCloudUpload, AiOutlineExpand } from "react-icons/ai";
 import { SiCoronarenderer } from "react-icons/si";
 import axios from "axios";
 import Modal from "react-modal";
-import JSZip from 'jszip';
-import { saveAs } from 'file-saver';
-
+import JSZip from "jszip";
+import { saveAs } from "file-saver";
 
 const ImageBlending = ({
   setErrorMessage,
@@ -43,6 +42,7 @@ const ImageBlending = ({
   setRoi1,
   setRoi2,
 }) => {
+  // State variables
   const [isBlending, setIsBlending] = useState(false);
   const [isDrawing, setIsDrawing] = useState(false);
   const [startPos, setStartPos] = useState({ x: 0, y: 0 });
@@ -61,16 +61,7 @@ const ImageBlending = ({
     naturalWidth: 0,
     naturalHeight: 0,
   });
-
-  const canvasRef1 = useRef(null);
-  const canvasRef2 = useRef(null);
-  const imgRef1 = useRef(null);
-  const imgRef2 = useRef(null);
-  const modalCanvasRef = useRef(null);
-  const modalImgRef = useRef(null);
   const [blendedResult, setBlendedResult] = useState(null);
-  const BACKEND_URL = process.env.BACKEND_URL;
-
   const [bright_field, set_bright_field] = useState("");
   const [dark_field, set_dark_field] = useState("");
   const [phase_contrast, set_phase_contrast] = useState("");
@@ -78,6 +69,27 @@ const ImageBlending = ({
   const [allImages, setAllImages] = useState([]);
   const [image2_gray, setImage2_gray] = useState("");
 
+  // NEW STATE VARIABLES FOR IMAGE 1 COLOR HANDLING
+  const [isColorImage1, setIsColorImage1] = useState(false);
+  const [selectedChannel1, setSelectedChannel1] = useState("rgb");
+  const [originalImage1DataURL, setOriginalImage1DataURL] = useState("");
+  const [processedImage1File, setProcessedImage1File] = useState(null);
+  const [image1_gray, setImage1_gray] = useState("");
+
+  // NEW STATE FOR COLOR OUTPUT OPTION
+  const [outputColor, setOutputColor] = useState(false);
+  const [colorBlendedResult, setColorBlendedResult] = useState(null);
+
+  const canvasRef1 = useRef(null);
+  const canvasRef2 = useRef(null);
+  const imgRef1 = useRef(null);
+  const imgRef2 = useRef(null);
+  const modalCanvasRef = useRef(null);
+  const modalImgRef = useRef(null);
+  const BACKEND_URL = process.env.BACKEND_URL;
+
+  // NEW STATE FOR COLOR OUTPUT
+  const [isGeneratingColor, setIsGeneratingColor] = useState(false);
   // Handle image upload
   const handleImageUpload = (e, isSecondImage = false) => {
     const file = e.target.files[0];
@@ -105,9 +117,17 @@ const ImageBlending = ({
           setUploadedImage2(dataURL);
         }
       } else {
-        setUploadedImage1(dataURL);
+        setOriginalImage1DataURL(dataURL);
+        const isColor = await checkIfColorImage(dataURL);
+        setIsColorImage1(isColor);
+        setSelectedChannel1("rgb");
         setRoi1(null);
-        setImage1File(file);
+        if (!isColor) {
+          setUploadedImage1(dataURL);
+          setProcessedImage1File(file);
+        } else {
+          setUploadedImage1(dataURL);
+        }
       }
     };
     reader.readAsDataURL(file);
@@ -120,6 +140,137 @@ const ImageBlending = ({
 
     e.target.value = null;
   };
+
+  useEffect(() => {
+    if (uploadedImage1) {
+      const handleExternalImage1Update = async () => {
+        setOriginalImage1DataURL(uploadedImage1);
+        const isColor = await checkIfColorImage(uploadedImage1);
+        setIsColorImage1(isColor);
+        setSelectedChannel1("rgb");
+        setRoi1(null);
+        if (!isColor) {
+          setProcessedImage1File(image1File);
+        }
+      };
+      handleExternalImage1Update();
+    }
+  }, [uploadedImage1, image1File]);
+
+  useEffect(() => {
+    if (uploadedImage2) {
+      const handleExternalImage2Update = async () => {
+        setOriginalImage2DataURL(uploadedImage2);
+        const isColor = await checkIfColorImage(uploadedImage2);
+        setIsColorImage2(isColor);
+        setSelectedChannel("rgb");
+        setRoi2(null);
+        if (!isColor) {
+          setProcessedImage2File(image2File);
+        }
+      };
+      handleExternalImage2Update();
+    }
+  }, [uploadedImage2, image2File]);
+
+  // NEW: FUNCTION TO CREATE COLOR IMAGE FROM CHANNELS
+  const createColorImage = async () => {
+    if (!blendedResult || !originalImage1DataURL || !selectedChannel1) return;
+
+    setIsGeneratingColor(true);
+
+    try {
+      // Load images
+      const [originalImg, blendedImg] = await Promise.all([
+        loadImage(originalImage1DataURL),
+        loadImage(`${BACKEND_URL}/${blendedResult}`),
+      ]);
+
+      // Create canvas for processing
+      const canvas = document.createElement("canvas");
+      canvas.width = originalImg.width;
+      canvas.height = originalImg.height;
+      const ctx = canvas.getContext("2d");
+
+      // Get original image data
+      ctx.drawImage(originalImg, 0, 0);
+      const originalData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+
+      // Get blended image data
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(blendedImg, 0, 0);
+      const blendedData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+
+      // Create new image data by combining channels
+      const newData = new ImageData(canvas.width, canvas.height);
+
+      for (let i = 0; i < originalData.data.length; i += 4) {
+        const r = originalData.data[i];
+        const g = originalData.data[i + 1];
+        const b = originalData.data[i + 2];
+
+        // Get the processed channel value from the blended image
+        const processedValue = blendedData.data[i];
+
+        // Replace only the selected channel
+        if (selectedChannel1 === "red") {
+          newData.data[i] = processedValue; // Use processed red channel
+          newData.data[i + 1] = g; // Original green
+          newData.data[i + 2] = b; // Original blue
+        } else if (selectedChannel1 === "green") {
+          newData.data[i] = r; // Original red
+          newData.data[i + 1] = processedValue; // Use processed green channel
+          newData.data[i + 2] = b; // Original blue
+        } else if (selectedChannel1 === "blue") {
+          newData.data[i] = r; // Original red
+          newData.data[i + 1] = g; // Original green
+          newData.data[i + 2] = processedValue; // Use processed blue channel
+        } else {
+          // For RGB, use the grayscale value for all channels
+          newData.data[i] = processedValue;
+          newData.data[i + 1] = processedValue;
+          newData.data[i + 2] = processedValue;
+        }
+        newData.data[i + 3] = 255; // Alpha channel
+      }
+
+      // Draw the new image data
+      ctx.putImageData(newData, 0, 0);
+
+      // Convert to data URL
+      const colorDataURL = canvas.toDataURL("image/png");
+      setColorBlendedResult(colorDataURL);
+    } catch (error) {
+      console.error("Error creating color image:", error);
+      setErrorMessage("Failed to generate color image");
+      setShowAlert(true);
+    } finally {
+      setIsGeneratingColor(false);
+    }
+  };
+
+  // Helper to load images
+  const loadImage = (src) => {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.crossOrigin = "Anonymous";
+      img.onload = () => resolve(img);
+      img.onerror = reject;
+      img.src = src;
+    });
+  };
+  // NEW: Effect for Image 1 color conversion
+  useEffect(() => {
+    if (isColorImage1 && selectedChannel1 && originalImage1DataURL) {
+      convertToGrayscale(originalImage1DataURL, selectedChannel1).then(
+        ({ dataURL, file }) => {
+          setImage1_gray(dataURL);
+          setProcessedImage1File(file);
+          setRoi1(null);
+        }
+      );
+    }
+  }, [isColorImage1, selectedChannel1, originalImage1DataURL]);
 
   useEffect(() => {
     if (uploadedImage2) {
@@ -201,74 +352,91 @@ const ImageBlending = ({
   };
 
   // Helper function to draw ROI on canvas
-// Update drawRoiOnCanvas function to round dimensions
-const drawRoiOnCanvas = (canvas, roi, color = "#ff0000") => {
-  if (!canvas || !roi) return;
-  const ctx = canvas.getContext("2d");
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  
-  // Round dimensions to integers
-  const roundedRoi = {
-    x: Math.round(roi.x),
-    y: Math.round(roi.y),
-    width: Math.round(roi.width),
-    height: Math.round(roi.height)
+  const drawRoiOnCanvas = (canvas, roi, color = "#ff0000") => {
+    if (!canvas || !roi) return;
+    const ctx = canvas.getContext("2d");
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Round dimensions to integers
+    const roundedRoi = {
+      x: Math.round(roi.x),
+      y: Math.round(roi.y),
+      width: Math.round(roi.width),
+      height: Math.round(roi.height),
+    };
+
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2;
+    ctx.strokeRect(
+      roundedRoi.x,
+      roundedRoi.y,
+      roundedRoi.width,
+      roundedRoi.height
+    );
+
+    ctx.fillStyle = color;
+    const fontSize = canvas.width > 500 ? "16px" : "12px";
+    ctx.font = `${fontSize} Arial`;
+
+    // Display rounded dimensions
+    ctx.fillText(
+      `${roundedRoi.width}x${roundedRoi.height}`,
+      roundedRoi.x + roundedRoi.width / 2 - 30,
+      roundedRoi.y + roundedRoi.height / 2
+    );
   };
 
-  ctx.strokeStyle = color;
-  ctx.lineWidth = 2;
-  ctx.strokeRect(roundedRoi.x, roundedRoi.y, roundedRoi.width, roundedRoi.height);
-  
-  ctx.fillStyle = color;
-  const fontSize = canvas.width > 500 ? "16px" : "12px";
-  ctx.font = `${fontSize} Arial`;
-  
-  // Display rounded dimensions
-  ctx.fillText(
-    `${roundedRoi.width}x${roundedRoi.height}`,
-    roundedRoi.x + roundedRoi.width / 2 - 30,
-    roundedRoi.y + roundedRoi.height / 2
-  );
-};
+  // Handle downloading all images as a ZIP
+  const downloadAllAsZip = async () => {
+    try {
+      const zip = new JSZip();
+      const imgFolder = zip.folder("rendered_images");
 
-// Add this function to handle downloading all images as a ZIP
-const downloadAllAsZip = async () => {
-  try {
-    const zip = new JSZip();
-    const imgFolder = zip.folder("rendered_images");
-    
-    const imagesToDownload = [];
-    
-    if (type === "multiple") {
-      imagesToDownload.push(
-        { url: `${BACKEND_URL}/${phase_contrast}`, name: "phase_contrast.bmp" },
-        { url: `${BACKEND_URL}/${bright_field}`, name: "bright_field.bmp" },
-        { url: `${BACKEND_URL}/${dark_field}`, name: "dark_field.bmp" },
-        { url: `${BACKEND_URL}/${blendedResult}`, name: "blended_result.bmp" }
+      const imagesToDownload = [];
+
+      if (type === "multiple") {
+        imagesToDownload.push(
+          {
+            url: `${BACKEND_URL}/${phase_contrast}`,
+            name: "phase_contrast.bmp",
+          },
+          { url: `${BACKEND_URL}/${bright_field}`, name: "bright_field.bmp" },
+          { url: `${BACKEND_URL}/${dark_field}`, name: "dark_field.bmp" },
+          { url: `${BACKEND_URL}/${blendedResult}`, name: "blended_result.bmp" }
+        );
+      } else {
+        imagesToDownload.push({
+          url: `${BACKEND_URL}/${blendedResult}`,
+          name: "blended_result.bmp",
+        });
+
+        // NEW: Add color result if available
+        if (colorBlendedResult) {
+          imagesToDownload.push({
+            url: `${BACKEND_URL}/${colorBlendedResult}`,
+            name: "color_result.bmp",
+          });
+        }
+      }
+
+      // Fetch all images and add them to the ZIP
+      await Promise.all(
+        imagesToDownload.map(async (image) => {
+          const response = await fetch(image.url);
+          const blob = await response.blob();
+          imgFolder.file(image.name, blob);
+        })
       );
-    } else {
-      imagesToDownload.push(
-        { url: `${BACKEND_URL}/${blendedResult}`, name: "blended_result.bmp" }
-      );
+
+      // Generate the ZIP file
+      const content = await zip.generateAsync({ type: "blob" });
+      saveAs(content, "rendered_images.zip");
+    } catch (error) {
+      console.error("Error creating ZIP file:", error);
+      setErrorMessage("Failed to download images as ZIP");
+      setShowAlert(true);
     }
-
-    // Fetch all images and add them to the ZIP
-    await Promise.all(imagesToDownload.map(async (image) => {
-      const response = await fetch(image.url);
-      const blob = await response.blob();
-      imgFolder.file(image.name, blob);
-    }));
-
-    // Generate the ZIP file
-    const content = await zip.generateAsync({ type: "blob" });
-    saveAs(content, "rendered_images.zip");
-    
-  } catch (error) {
-    console.error("Error creating ZIP file:", error);
-    setErrorMessage("Failed to download images as ZIP");
-    setShowAlert(true);
-  }
-};
+  };
 
   // Initialize modal canvas
   const initModalCanvas = () => {
@@ -645,12 +813,6 @@ const downloadAllAsZip = async () => {
       const img1 = imgRef1.current;
       const img2 = imgRef2.current;
 
-      // REMOVE THIS SCALING LOGIC - coordinates are already natural
-      // const scaleX1 = img1.naturalWidth / img1.offsetWidth;
-      // const scaleY1 = img1.naturalHeight / img1.offsetHeight;
-      // const scaleX2 = img2.naturalWidth / img2.offsetWidth;
-      // const scaleY2 = img2.naturalHeight / img2.offsetHeight;
-
       // Use stored natural coordinates directly
       const naturalRoi1 = {
         x: roi1.x,
@@ -685,8 +847,11 @@ const downloadAllAsZip = async () => {
         100000000000 + Math.random() * 900000000000
       ).toString();
       const formData = new FormData();
-      formData.append("image1", image1File);
+
+      // NEW: Use processed images if available
+      formData.append("image1", processedImage1File || image1File);
       formData.append("image2", processedImage2File || image2File);
+
       formData.append("unique_code", uniqueCode);
       formData.append("type", type);
       formData.append(
@@ -730,6 +895,16 @@ const downloadAllAsZip = async () => {
           height: img2.offsetHeight,
         })
       );
+
+      // NEW: Send color channel information
+      formData.append("is_color_image1", isColorImage1);
+      formData.append("selected_channel1", selectedChannel1);
+      formData.append("is_color_image2", isColorImage2);
+      formData.append("selected_channel2", selectedChannel);
+
+      // NEW: Send color output preference
+      formData.append("output_color", outputColor && type === "single");
+
       const token = localStorage.getItem("authToken");
       const response = await axios.post(
         `${BACKEND_URL}/api/blend-images/`,
@@ -743,6 +918,14 @@ const downloadAllAsZip = async () => {
       );
       if (response.data.success) {
         setBlendedResult(response.data.blended_image);
+
+        // NEW: Handle color output
+        if (type === "single" && response.data.color_blended_image) {
+          setColorBlendedResult(response.data.color_blended_image);
+        } else {
+          setColorBlendedResult(null);
+        }
+
         if (type === "multiple") {
           set_bright_field(response.data.bright_field);
           set_dark_field(response.data.dark_field);
@@ -764,6 +947,12 @@ const downloadAllAsZip = async () => {
 
   const expandImage = (imageSrc) => {
     const images = [`${BACKEND_URL}/${blendedResult}`];
+
+    // NEW: Include color result
+    if (colorBlendedResult) {
+      images.push(`${BACKEND_URL}/${colorBlendedResult}`);
+    }
+
     if (type === "multiple") {
       images.push(
         `${BACKEND_URL}/${phase_contrast}`,
@@ -823,7 +1012,6 @@ const downloadAllAsZip = async () => {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
         {/* Image 1 Upload and Canvas */}
-        {/* Image 1 */}
         <div className="border dark:border-gray-600 border-gray-300 rounded-lg p-2">
           <div className="relative">
             <label
@@ -836,7 +1024,11 @@ const downloadAllAsZip = async () => {
                 <div className="relative">
                   <img
                     ref={imgRef1}
-                    src={uploadedImage1}
+                    src={
+                      isColorImage1
+                        ? image1_gray || uploadedImage1
+                        : uploadedImage1
+                    }
                     alt="Uploaded 1"
                     className="max-h-96 w-auto object-contain rounded-md"
                     onLoad={() => initCanvas(imgRef1, canvasRef1, 1)}
@@ -886,9 +1078,73 @@ const downloadAllAsZip = async () => {
               />
             </label>
           </div>
-          {roi1 && (
-            <div className="mt-2 text-xs dark:text-gray-300 text-center">
-              {/* ROI: {roi1.width}x{roi1.height} */}
+          {isColorImage1 && (
+            <div className="my-4 p-4 rounded-xl bg-gradient-to-br from-indigo-50 to-blue-50 dark:from-neutral-900/30 dark:to-neutral-900/30 border border-indigo-100 dark:border-indigo-800/50 shadow-sm transition-all duration-300 hover:shadow-md">
+              <div className="flex items-start gap-3">
+                <div className="mt-0.5 p-2 rounded-lg bg-indigo-100 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-300">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="h-5 w-5"
+                    viewBox="0 0 20 20"
+                    fill="currentColor"
+                  >
+                    <path
+                      fillRule="evenodd"
+                      d="M3 5a2 2 0 012-2h10a2 2 0 012 2v10a2 2 0 01-2 2H5a2 2 0 01-2-2V5zm11 1H6v8l4-2 4 2V6z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
+                </div>
+
+                <div className="flex-1">
+                  <h3 className="font-semibold text-indigo-700 dark:text-indigo-300 flex items-center gap-2">
+                    Raw Image Color Channel Selection
+                    <span className="px-2 py-0.5 text-xs font-medium bg-indigo-100 dark:bg-indigo-800/60 text-indigo-700 dark:text-indigo-200 rounded-full">
+                      Grayscale Conversion
+                    </span>
+                  </h3>
+                  <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
+                    Select which color channel to use for grayscale conversion
+                  </p>
+
+                  <div className="mt-3 relative">
+                    <select
+                      value={selectedChannel1}
+                      onChange={(e) => setSelectedChannel1(e.target.value)}
+                      className="w-full pl-4 pr-10 py-3 text-sm rounded-lg bg-white dark:bg-neutral-800 border-0 shadow-sm ring-1 ring-gray-300 dark:ring-gray-600 focus:ring-2 focus:ring-indigo-500 focus:outline-none appearance-none transition-all"
+                    >
+                      <option value="rgb">RGB channel</option>
+                      <option value="red" className="flex items-center">
+                        <span className="w-3 h-3 rounded-full bg-red-500 mr-2"></span>
+                        Red Channel
+                      </option>
+                      <option value="green">
+                        <span className="w-3 h-3 rounded-full bg-green-500 mr-2"></span>
+                        Green Channel
+                      </option>
+                      <option value="blue">
+                        <span className="w-3 h-3 rounded-full bg-blue-500 mr-2"></span>
+                        Blue Channel
+                      </option>
+                    </select>
+
+                    <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-500 dark:text-gray-400">
+                      <svg
+                        className="h-5 w-5"
+                        xmlns="http://www.w3.org/2000/svg"
+                        viewBox="0 0 20 20"
+                        fill="currentColor"
+                      >
+                        <path
+                          fillRule="evenodd"
+                          d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
+                          clipRule="evenodd"
+                        />
+                      </svg>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
         </div>
@@ -998,83 +1254,80 @@ const downloadAllAsZip = async () => {
             </div>
           )}
 
-          {roi2 && (
-            <div className="mt-2 text-xs dark:text-gray-300 text-center">
-              {/* ROI: {roi2.width}x{roi2.height} */}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {isColorImage2 && (
-        <div className="my-4 p-4 rounded-xl bg-gradient-to-br from-indigo-50 to-blue-50 dark:from-neutral-900/30 dark:to-neutral-900/30 border border-indigo-100 dark:border-indigo-800/50 shadow-sm transition-all duration-300 hover:shadow-md">
-          <div className="flex items-start gap-3">
-            <div className="mt-0.5 p-2 rounded-lg bg-indigo-100 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-300">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                className="h-5 w-5"
-                viewBox="0 0 20 20"
-                fill="currentColor"
-              >
-                <path
-                  fillRule="evenodd"
-                  d="M3 5a2 2 0 012-2h10a2 2 0 012 2v10a2 2 0 01-2 2H5a2 2 0 01-2-2V5zm11 1H6v8l4-2 4 2V6z"
-                  clipRule="evenodd"
-                />
-              </svg>
-            </div>
-
-            <div className="flex-1">
-              <h3 className="font-semibold text-indigo-700 dark:text-indigo-300 flex items-center gap-2">
-                Color Channel Selection
-                <span className="px-2 py-0.5 text-xs font-medium bg-indigo-100 dark:bg-indigo-800/60 text-indigo-700 dark:text-indigo-200 rounded-full">
-                  Grayscale Conversion
-                </span>
-              </h3>
-              <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
-                Select which color channel to use for grayscale conversion
-              </p>
-
-              <div className="mt-3 relative">
-                <select
-                  value={selectedChannel}
-                  onChange={(e) => setSelectedChannel(e.target.value)}
-                  className="w-full pl-4 pr-10 py-3 text-sm rounded-lg bg-white dark:bg-neutral-800 border-0 shadow-sm ring-1 ring-gray-300 dark:ring-gray-600 focus:ring-2 focus:ring-indigo-500 focus:outline-none appearance-none transition-all"
-                >
-                  <option value="rgb">RGB channel</option>
-                  <option value="red" className="flex items-center">
-                    <span className="w-3 h-3 rounded-full bg-red-500 mr-2"></span>
-                    Red Channel
-                  </option>
-                  <option value="green">
-                    <span className="w-3 h-3 rounded-full bg-green-500 mr-2"></span>
-                    Green Channel
-                  </option>
-                  <option value="blue">
-                    <span className="w-3 h-3 rounded-full bg-blue-500 mr-2"></span>
-                    Blue Channel
-                  </option>
-                </select>
-
-                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-500 dark:text-gray-400">
+          {/* Color channel selection for Image 2 */}
+          {isColorImage2 && (
+            <div className="my-4 p-4 rounded-xl bg-gradient-to-br from-indigo-50 to-blue-50 dark:from-neutral-900/30 dark:to-neutral-900/30 border border-indigo-100 dark:border-indigo-800/50 shadow-sm transition-all duration-300 hover:shadow-md">
+              <div className="flex items-start gap-3">
+                <div className="mt-0.5 p-2 rounded-lg bg-indigo-100 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-300">
                   <svg
-                    className="h-5 w-5"
                     xmlns="http://www.w3.org/2000/svg"
+                    className="h-5 w-5"
                     viewBox="0 0 20 20"
                     fill="currentColor"
                   >
                     <path
                       fillRule="evenodd"
-                      d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
+                      d="M3 5a2 2 0 012-2h10a2 2 0 012 2v10a2 2 0 01-2 2H5a2 2 0 01-2-2V5zm11 1H6v8l4-2 4 2V6z"
                       clipRule="evenodd"
                     />
                   </svg>
                 </div>
+
+                <div className="flex-1">
+                  <h3 className="font-semibold text-indigo-700 dark:text-indigo-300 flex items-center gap-2">
+                    Photo Image Color Channel Selection
+                    <span className="px-2 py-0.5 text-xs font-medium bg-indigo-100 dark:bg-indigo-800/60 text-indigo-700 dark:text-indigo-200 rounded-full">
+                      Grayscale Conversion
+                    </span>
+                  </h3>
+                  <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
+                    Select which color channel to use for grayscale conversion
+                  </p>
+
+                  <div className="mt-3 relative">
+                    <select
+                      value={selectedChannel}
+                      onChange={(e) => setSelectedChannel(e.target.value)}
+                      className="w-full pl-4 pr-10 py-3 text-sm rounded-lg bg-white dark:bg-neutral-800 border-0 shadow-sm ring-1 ring-gray-300 dark:ring-gray-600 focus:ring-2 focus:ring-indigo-500 focus:outline-none appearance-none transition-all"
+                    >
+                      <option value="rgb">RGB channel</option>
+                      <option value="red" className="flex items-center">
+                        <span className="w-3 h-3 rounded-full bg-red-500 mr-2"></span>
+                        Red Channel
+                      </option>
+                      <option value="green">
+                        <span className="w-3 h-3 rounded-full bg-green-500 mr-2"></span>
+                        Green Channel
+                      </option>
+                      <option value="blue">
+                        <span className="w-3 h-3 rounded-full bg-blue-500 mr-2"></span>
+                        Blue Channel
+                      </option>
+                    </select>
+
+                    <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-500 dark:text-gray-400">
+                      <svg
+                        className="h-5 w-5"
+                        xmlns="http://www.w3.org/2000/svg"
+                        viewBox="0 0 20 20"
+                        fill="currentColor"
+                      >
+                        <path
+                          fillRule="evenodd"
+                          d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
+                          clipRule="evenodd"
+                        />
+                      </svg>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
-          </div>
+          )}
         </div>
-      )}
+      </div>
+
+      {/* NEW: Color channel selection for Image 1 */}
 
       {/* Blend Button */}
       <button
@@ -1085,7 +1338,8 @@ const downloadAllAsZip = async () => {
           !roi1 ||
           !roi2 ||
           isBlending ||
-          (isColorImage2 && !selectedChannel)
+          (isColorImage2 && !selectedChannel) ||
+          (isColorImage1 && !selectedChannel1)
         }
         className="w-full bg-gradient-to-r from-purple-600 to-blue-500 hover:from-purple-700 hover:to-blue-600 text-white font-bold py-2 px-4 rounded flex items-center justify-center transition duration-200 disabled:opacity-50"
       >
@@ -1122,91 +1376,134 @@ const downloadAllAsZip = async () => {
       </button>
 
       {blendedResult && (
-        <section className=" ">
-          <div className=" flex flex-wrap ">
-            <div className="m-4">
-              <h3 className="text-lg font-semibold dark:text-white">
-                Rendered Image ( Single Spot )
-              </h3>
-              <div className="relative">
-                <img
-                  src={`${BACKEND_URL}/${blendedResult}`}
-                  alt="Blended result"
-                  className="max-h-96 w-auto object-contain rounded-md border dark:border-gray-600"
-                />
-                <button
-                  onClick={() => expandImage(`${BACKEND_URL}/${blendedResult}`)}
-                  className="absolute top-2 right-2 bg-black bg-opacity-50 text-white p-1 rounded-full hover:bg-opacity-70"
-                >
-                  <AiOutlineExpand size={20} />
-                </button>
-              </div>
+        // {blendedResult && type === "single" && (
+        <section>
+          <div className="m-4">
+            <h3 className="text-lg font-semibold dark:text-white">
+              Rendered Image (Single Spot)
+            </h3>
+            <div className="relative">
+              <img
+                src={`${BACKEND_URL}/${blendedResult}`}
+                alt="Blended result"
+                className="max-h-96 w-auto object-contain rounded-md border dark:border-gray-600"
+              />
+              <button
+                onClick={() => expandImage(`${BACKEND_URL}/${blendedResult}`)}
+                className="absolute top-2 right-2 bg-black bg-opacity-50 text-white p-1 rounded-full hover:bg-opacity-70"
+              >
+                <AiOutlineExpand size={20} />
+              </button>
             </div>
-            {type === "multiple" && (
-              <div className="m-4">
+
+            {/* NEW: COLOR OUTPUT SECTION */}
+            {isColorImage1 && selectedChannel1 !== "rgb" && (
+              <div className="mt-6 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-700">
+                <h4 className="font-bold text-blue-700 dark:text-blue-300 mb-2">
+                  Color Output Options
+                </h4>
+
+                <button
+                  onClick={createColorImage}
+                  disabled={isGeneratingColor}
+                  className="flex items-center bg-blue-500 hover:bg-blue-600 text-white py-2 px-4 rounded-md disabled:opacity-50"
+                >
+                  {isGeneratingColor ? (
+                    <>
+                      <svg
+                        className="animate-spin -ml-1 mr-3 h-5 w-5 text-white"
+                        xmlns="http://www.w3.org/2000/svg"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                      >
+                        <circle
+                          className="opacity-25"
+                          cx="12"
+                          cy="12"
+                          r="10"
+                          stroke="currentColor"
+                          strokeWidth="4"
+                        ></circle>
+                        <path
+                          className="opacity-75"
+                          fill="currentColor"
+                          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                        ></path>
+                      </svg>
+                      Generating Color Image...
+                    </>
+                  ) : (
+                    "Create Color Image from Original Channels"
+                  )}
+                </button>
+
+                <p className="mt-2 text-sm text-blue-600 dark:text-blue-300">
+                  Combines the processed {selectedChannel1} channel with
+                  original{" "}
+                  {selectedChannel1 === "red"
+                    ? "green and blue"
+                    : selectedChannel1 === "green"
+                    ? "red and blue"
+                    : "red and green"}{" "}
+                  channels
+                </p>
+              </div>
+            )}
+
+            {/* Display color result */}
+            {colorBlendedResult && (
+              <div className="mt-6">
                 <h3 className="text-lg font-semibold dark:text-white">
-                  Phase Contrast
+                  Color Output Result
                 </h3>
                 <div className="relative">
                   <img
-                    src={`${BACKEND_URL}/${phase_contrast}`}
-                    alt="Blended result"
+                    src={colorBlendedResult}
+                    alt="Color blended result"
                     className="max-h-96 w-auto object-contain rounded-md border dark:border-gray-600"
                   />
                   <button
-                    onClick={() =>
-                      expandImage(`${BACKEND_URL}/${phase_contrast}`)
-                    }
+                    onClick={() => {
+                      setExpandedImage(colorBlendedResult);
+                      setAllImages([colorBlendedResult]);
+                    }}
                     className="absolute top-2 right-2 bg-black bg-opacity-50 text-white p-1 rounded-full hover:bg-opacity-70"
                   >
                     <AiOutlineExpand size={20} />
+                  </button>
+                </div>
+
+                {/* Download button for color result */}
+                <div className="mt-2 flex justify-center">
+                  <button
+                    onClick={() => {
+                      const link = document.createElement("a");
+                      link.href = colorBlendedResult;
+                      link.download = "color_output.bmp";
+                      document.body.appendChild(link);
+                      link.click();
+                      document.body.removeChild(link);
+                    }}
+                    className="flex items-center bg-green-500 hover:bg-green-600 text-white py-2 px-4 rounded-md"
+                  >
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      className="h-5 w-5 mr-2"
+                      viewBox="0 0 20 20"
+                      fill="currentColor"
+                    >
+                      <path
+                        fillRule="evenodd"
+                        d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z"
+                        clipRule="evenodd"
+                      />
+                    </svg>
+                    Download Color Image
                   </button>
                 </div>
               </div>
             )}
           </div>
-          {type === "multiple" && (
-            <div className=" flex flex-wrap ">
-              <div className="m-4">
-                <h3 className="text-lg font-semibold dark:text-white">
-                  Bright Field
-                </h3>
-                <div className="relative">
-                  <img
-                    src={`${BACKEND_URL}/${bright_field}`}
-                    alt="Blended result"
-                    className="max-h-96 w-auto object-contain rounded-md border dark:border-gray-600"
-                  />
-                  <button
-                    onClick={() =>
-                      expandImage(`${BACKEND_URL}/${bright_field}`)
-                    }
-                    className="absolute top-2 right-2 bg-black bg-opacity-50 text-white p-1 rounded-full hover:bg-opacity-70"
-                  >
-                    <AiOutlineExpand size={20} />
-                  </button>
-                </div>
-              </div>
-              <div className="m-4">
-                <h3 className="text-lg font-semibold dark:text-white">
-                  Dark Field
-                </h3>
-                <div className="relative">
-                  <img
-                    src={`${BACKEND_URL}/${dark_field}`}
-                    alt="Blended result"
-                    className="max-h-96 w-auto object-contain rounded-md border dark:border-gray-600"
-                  />
-                  <button
-                    onClick={() => expandImage(`${BACKEND_URL}/${dark_field}`)}
-                    className="absolute top-2 right-2 bg-black bg-opacity-50 text-white p-1 rounded-full hover:bg-opacity-70"
-                  >
-                    <AiOutlineExpand size={20} />
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
         </section>
       )}
 
@@ -1235,7 +1532,9 @@ const downloadAllAsZip = async () => {
           <div className="relative border-2 border-blue-400 rounded-lg overflow-auto">
             {expandedForROI === "image1" && uploadedImage1 && (
               <img
-                src={uploadedImage1}
+                src={
+                  isColorImage1 ? image1_gray || uploadedImage1 : uploadedImage1
+                }
                 alt="Full size Raw Image"
                 className="max-h-[85vh] max-w-full object-contain"
                 ref={modalImgRef}
@@ -1260,108 +1559,94 @@ const downloadAllAsZip = async () => {
               onMouseLeave={handleModalMouseUp}
             />
           </div>
-
-          {/* <div className="mt-4 flex justify-center space-x-4">
-            <button
-              onClick={saveModalROI}
-              className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
-            >
-              Save ROI
-            </button>
-            <button
-              onClick={() => setExpandedForROI(null)}
-              className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600"
-            >
-              Cancel
-            </button>
-          </div> */}
         </div>
       </Modal>
 
-{/* // Update the Modal component to include the Download All as ZIP button */}
-<Modal
-  isOpen={!!expandedImage}
-  onRequestClose={closeModal}
-  contentLabel="Expanded Image"
-  className="modal"
-  overlayClassName="modal-overlay"
->
-  <div className="relative h-full w-full flex items-center justify-center">
-    {allImages.length > 1 && (
-      <button
-        onClick={() => navigateImage("prev")}
-        className="absolute left-4 bg-black bg-opacity-50 text-white p-4 rounded-full hover:bg-opacity-70 z-10"
+      {/* Expanded Image Modal */}
+      <Modal
+        isOpen={!!expandedImage}
+        onRequestClose={closeModal}
+        contentLabel="Expanded Image"
+        className="modal"
+        overlayClassName="modal-overlay"
       >
-        ←
-      </button>
-    )}
-    <img
-      src={expandedImage}
-      alt="Expanded view"
-      className="max-h-[90vh] max-w-[90vw] object-contain"
-    />
-    {allImages.length > 1 && (
-      <button
-        onClick={() => navigateImage("next")}
-        className="absolute right-4 bg-black bg-opacity-50 text-white p-4 rounded-full hover:bg-opacity-70 z-10"
-      >
-        →
-      </button>
-    )}
-    <button
-      onClick={closeModal}
-      className="absolute top-4 right-4 bg-black bg-opacity-50 text-white p-2 rounded-full hover:bg-opacity-70"
-    >
-      ✕
-    </button>
-    <div className="absolute top-4 right-12 flex space-x-2">
-      <button
-        onClick={downloadAsBMP}
-        className="bg-black bg-opacity-50 text-white p-2 rounded-full hover:bg-opacity-70"
-        title="Download current as BMP"
-      >
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          className="h-5 w-5"
-          viewBox="0 0 20 20"
-          fill="currentColor"
-        >
-          <path
-            fillRule="evenodd"
-            d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z"
-            clipRule="evenodd"
+        <div className="relative h-full w-full flex items-center justify-center">
+          {allImages.length > 1 && (
+            <button
+              onClick={() => navigateImage("prev")}
+              className="absolute left-4 bg-black bg-opacity-50 text-white p-4 rounded-full hover:bg-opacity-70 z-10"
+            >
+              ←
+            </button>
+          )}
+          <img
+            src={expandedImage}
+            alt="Expanded view"
+            className="max-h-[90vh] max-w-[90vw] object-contain"
           />
-        </svg>
-      </button>
-      <button
-        onClick={downloadAllAsZip}
-        className="bg-black bg-opacity-50 text-white p-2 rounded-full hover:bg-opacity-70"
-        title="Download all as ZIP"
-      >
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          className="h-5 w-5"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-          <polyline points="7 10 12 15 17 10"></polyline>
-          <line x1="12" y1="15" x2="12" y2="3"></line>
-          <path d="M17 8V5a2 2 0 0 0-2-2H9a2 2 0 0 0-2 2v3"></path>
-        </svg>
-      </button>
-    </div>
-    {allImages.length > 1 && (
-      <div className="absolute bottom-4 bg-black bg-opacity-50 text-white px-3 py-1 rounded-lg">
-        {currentImageIndex + 1} / {allImages.length}
-      </div>
-    )}
-  </div>
-</Modal>
+          {allImages.length > 1 && (
+            <button
+              onClick={() => navigateImage("next")}
+              className="absolute right-4 bg-black bg-opacity-50 text-white p-4 rounded-full hover:bg-opacity-70 z-10"
+            >
+              →
+            </button>
+          )}
+          <button
+            onClick={closeModal}
+            className="absolute top-4 right-4 bg-black bg-opacity-50 text-white p-2 rounded-full hover:bg-opacity-70"
+          >
+            ✕
+          </button>
+          <div className="absolute top-4 right-12 flex space-x-2">
+            <button
+              onClick={downloadAsBMP}
+              className="bg-black bg-opacity-50 text-white p-2 rounded-full hover:bg-opacity-70"
+              title="Download current as BMP"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                className="h-5 w-5"
+                viewBox="0 0 20 20"
+                fill="currentColor"
+              >
+                <path
+                  fillRule="evenodd"
+                  d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z"
+                  clipRule="evenodd"
+                />
+              </svg>
+            </button>
+            <button
+              onClick={downloadAllAsZip}
+              className="bg-black bg-opacity-50 text-white p-2 rounded-full hover:bg-opacity-70"
+              title="Download all as ZIP"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                className="h-5 w-5"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="7 10 12 15 17 10"></polyline>
+                <line x1="12" y1="15" x2="12" y2="3"></line>
+                <path d="M17 8V5a2 2 0 0 0-2-2H9a2 2 0 0 0-2 2v3"></path>
+              </svg>
+            </button>
+          </div>
+          {allImages.length > 1 && (
+            <div className="absolute bottom-4 bg-black bg-opacity-50 text-white px-3 py-1 rounded-lg">
+              {currentImageIndex + 1} / {allImages.length}
+            </div>
+          )}
+        </div>
+      </Modal>
+
       {/* Modal Styles */}
       <style jsx global>{`
         .modal {
