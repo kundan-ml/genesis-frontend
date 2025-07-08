@@ -1378,7 +1378,9 @@ const ImageBlending = ({
       {blendedResult && (
         // {blendedResult && type === "single" && (
         <section>
-          <div className="m-4">
+          <div className=" flex flex-wrap " >
+
+          <div className="m-4  ">
             <h3 className="text-lg font-semibold dark:text-white">
               Rendered Image (Single Spot)
             </h3>
@@ -1395,8 +1397,32 @@ const ImageBlending = ({
                 <AiOutlineExpand size={20} />
               </button>
             </div>
+              </div>
 
-            
+          <div>
+            {type === "multiple" && (
+              <div className="m-4">
+                <h3 className="text-lg font-semibold dark:text-white">
+                  Phase Contrast
+                </h3>
+                <div className="relative">
+                  <img
+                    src={`${BACKEND_URL}/${phase_contrast}`}
+                    alt="Blended result"
+                    className="max-h-96 w-auto object-contain rounded-md border dark:border-gray-600"
+                  />
+                  <button
+                    onClick={() =>
+                      expandImage(`${BACKEND_URL}/${phase_contrast}`)
+                    }
+                    className="absolute top-2 right-2 bg-black bg-opacity-50 text-white p-1 rounded-full hover:bg-opacity-70"
+                  >
+                    <AiOutlineExpand size={20} />
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
 
             {/* NEW: COLOR OUTPUT SECTION */}
             {isColorImage1 && selectedChannel1 !== "rgb" && (
@@ -1507,30 +1533,7 @@ const ImageBlending = ({
             )}
           </div>
 
-<div>
-                      {type === "multiple" && (
-              <div className="m-4">
-                <h3 className="text-lg font-semibold dark:text-white">
-                  Phase Contrast
-                </h3>
-                <div className="relative">
-                  <img
-                    src={`${BACKEND_URL}/${phase_contrast}`}
-                    alt="Blended result"
-                    className="max-h-96 w-auto object-contain rounded-md border dark:border-gray-600"
-                  />
-                  <button
-                    onClick={() =>
-                      expandImage(`${BACKEND_URL}/${phase_contrast}`)
-                    }
-                    className="absolute top-2 right-2 bg-black bg-opacity-50 text-white p-1 rounded-full hover:bg-opacity-70"
-                  >
-                    <AiOutlineExpand size={20} />
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
+
           {type === "multiple" && (
             <div className=" flex flex-wrap ">
               <div className="m-4">
