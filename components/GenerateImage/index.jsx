@@ -559,6 +559,7 @@ const loadPdf = async (file) => {
         currentPage={currentPage}
         setPdfDoc={setPdfDoc}
         setIsPdf={setIsPdf}
+        loading={loading}
       />
 
       {/* Main Content Section */}

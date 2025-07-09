@@ -900,7 +900,8 @@ const Sidebar = ({
   totalPages,
   currentPage,
   setPdfDoc,
-  setIsPdf
+  setIsPdf,
+  loading
 }) => {
   const darkTheme = true;
   const [totalCredit, setTotalCredit] = useState(profile.credit);
@@ -1685,6 +1686,7 @@ const Sidebar = ({
             <div className="px-2 pt-3 border-t border-neutral-500">
               <button
                 type="submit"
+                  disabled={loading}
                 className="w-full border-neutral-500 bg-gradient-to-r from-[#4F46E5] to-[rgb(225,20,229)] text-white p-2 text-sm font-semibold rounded-md flex justify-center shadow-lg border items-center hover:bg-blue-600 transition duration-200 relative"
               >
                 <span className="flex gap-2 items-center">
