@@ -901,7 +901,7 @@ const Sidebar = ({
   currentPage,
   setPdfDoc,
   setIsPdf,
-  loading
+  loading,
 }) => {
   const darkTheme = true;
   const [totalCredit, setTotalCredit] = useState(profile.credit);
