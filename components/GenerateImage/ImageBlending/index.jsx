@@ -1,5 +1,8 @@
 import React, { useState, useRef, useEffect } from "react";
 import { AiOutlineCloudUpload, AiOutlineExpand } from "react-icons/ai";
+import { MdOutlineRectangle } from "react-icons/md";
+import { FaRegCircle } from "react-icons/fa";
+import { FaPencilAlt } from "react-icons/fa";
 import { SiCoronarenderer } from "react-icons/si";
 import axios from "axios";
 import Modal from "react-modal";
@@ -80,6 +83,20 @@ const ImageBlending = ({
   const [outputColor, setOutputColor] = useState(false);
   const [colorBlendedResult, setColorBlendedResult] = useState(null);
 
+  // Add these to your existing state variables
+  const [generatedMask, setGeneratedMask] = useState(null);
+  const [roiPreview, setRoiPreview] = useState(null);
+
+  const [drawingTool, setDrawingTool] = useState("rectangle");
+  const [useSAM, setUseSAM] = useState(false);
+
+  // NEW STATE VARIABLES FOR FREEHAND DRAWING
+  const [freehandPath1, setFreehandPath1] = useState([]);
+  const [freehandPath2, setFreehandPath2] = useState([]);
+  const [modalFreehandPath, setModalFreehandPath] = useState([]);
+  const [freehandMask1, setFreehandMask1] = useState(null);
+  const [freehandMask2, setFreehandMask2] = useState(null);
+
   const canvasRef1 = useRef(null);
   const canvasRef2 = useRef(null);
   const imgRef1 = useRef(null);
@@ -110,6 +127,8 @@ const ImageBlending = ({
         setIsColorImage2(isColor);
         setSelectedChannel("rgb");
         setRoi2(null);
+        setFreehandPath2([]); // Clear freehand path
+        setFreehandMask2(null); // Clear freehand mask
         if (!isColor) {
           setUploadedImage2(dataURL);
           setProcessedImage2File(file);
@@ -122,6 +141,8 @@ const ImageBlending = ({
         setIsColorImage1(isColor);
         setSelectedChannel1("rgb");
         setRoi1(null);
+        setFreehandPath1([]); // Clear freehand path
+        setFreehandMask1(null); // Clear freehand mask
         if (!isColor) {
           setUploadedImage1(dataURL);
           setProcessedImage1File(file);
@@ -149,6 +170,8 @@ const ImageBlending = ({
         setIsColorImage1(isColor);
         setSelectedChannel1("rgb");
         setRoi1(null);
+        setFreehandPath1([]);
+        setFreehandMask1(null);
         if (!isColor) {
           setProcessedImage1File(image1File);
         }
@@ -165,6 +188,8 @@ const ImageBlending = ({
         setIsColorImage2(isColor);
         setSelectedChannel("rgb");
         setRoi2(null);
+        setFreehandPath2([]);
+        setFreehandMask2(null);
         if (!isColor) {
           setProcessedImage2File(image2File);
         }
@@ -267,6 +292,8 @@ const ImageBlending = ({
           setImage1_gray(dataURL);
           setProcessedImage1File(file);
           setRoi1(null);
+          setFreehandPath1([]);
+          setFreehandMask1(null);
         }
       );
     }
@@ -280,6 +307,8 @@ const ImageBlending = ({
         setIsColorImage2(isColor);
         setSelectedChannel("rgb");
         setRoi2(null);
+        setFreehandPath2([]);
+        setFreehandMask2(null);
         if (!isColor) {
           setProcessedImage2File(image2File);
         } else {
@@ -298,6 +327,8 @@ const ImageBlending = ({
           setIsDefault(dataURL);
           setProcessedImage2File(file);
           setRoi2(null);
+          setFreehandPath2([]);
+          setFreehandMask2(null);
         }
       );
     }
@@ -335,7 +366,8 @@ const ImageBlending = ({
 
       // Draw existing ROI if available
       const roi = imageNum === 1 ? roi1 : roi2;
-      if (roi && img.naturalWidth > 0) {
+      const freehandPath = imageNum === 1 ? freehandPath1 : freehandPath2;
+      if (roi && img.naturalWidth > 0 && drawingTool === "rectangle") {
         const scaleX = img.offsetWidth / img.naturalWidth;
         const scaleY = img.offsetHeight / img.naturalHeight;
 
@@ -347,6 +379,12 @@ const ImageBlending = ({
         };
 
         drawRoiOnCanvas(canvas, displayRoi);
+      } else if (
+        freehandPath.length > 0 &&
+        img.naturalWidth > 0 &&
+        drawingTool === "pencil"
+      ) {
+        drawFreehandOnCanvas(canvas, freehandPath, img);
       }
     }
   };
@@ -384,6 +422,75 @@ const ImageBlending = ({
       roundedRoi.x + roundedRoi.width / 2 - 30,
       roundedRoi.y + roundedRoi.height / 2
     );
+  };
+
+  // NEW: Helper function to draw freehand path on canvas
+  const drawFreehandOnCanvas = (canvas, path, img, color = "#ff0000") => {
+    if (!canvas || !path || path.length === 0) return;
+    const ctx = canvas.getContext("2d");
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 3;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+
+    // Scale the path from natural coordinates to display coordinates
+    const scaleX = canvas.width / img.naturalWidth;
+    const scaleY = canvas.height / img.naturalHeight;
+
+    ctx.beginPath();
+    for (let i = 0; i < path.length; i++) {
+      const point = path[i];
+      const displayX = point.x * scaleX;
+      const displayY = point.y * scaleY;
+
+      if (i === 0) {
+        ctx.moveTo(displayX, displayY);
+      } else {
+        ctx.lineTo(displayX, displayY);
+      }
+    }
+    ctx.stroke();
+  };
+
+  // NEW: Generate mask from freehand path
+  const generateMaskFromFreehand = (path, imgElement) => {
+    if (!path || path.length === 0 || !imgElement) return null;
+
+    const canvas = document.createElement("canvas");
+    canvas.width = imgElement.naturalWidth;
+    canvas.height = imgElement.naturalHeight;
+    const ctx = canvas.getContext("2d");
+
+    // Create black background
+    ctx.fillStyle = "rgb(0, 0, 0)";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Draw white path for freehand area
+    ctx.strokeStyle = "rgb(255, 255, 255)";
+    ctx.lineWidth = 10; // Make the line thicker for better visibility
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+
+    ctx.beginPath();
+    for (let i = 0; i < path.length; i++) {
+      const point = path[i];
+      if (i === 0) {
+        ctx.moveTo(point.x, point.y);
+      } else {
+        ctx.lineTo(point.x, point.y);
+      }
+    }
+    ctx.stroke();
+
+    // Fill the enclosed area if path is closed
+    if (path.length > 2) {
+      ctx.fillStyle = "rgb(255, 255, 255)";
+      ctx.fill();
+    }
+
+    return canvas.toDataURL("image/png");
   };
 
   // Handle downloading all images as a ZIP
@@ -452,6 +559,9 @@ const ImageBlending = ({
           ? tempRoi.roi1 || roi1
           : tempRoi.roi2 || roi2;
 
+      const existingFreehandPath =
+        expandedForROI === "image1" ? freehandPath1 : freehandPath2;
+
       if (existingRoi) {
         const imgDimensions =
           expandedForROI === "image1" ? image1Dimensions : image2Dimensions;
@@ -469,6 +579,16 @@ const ImageBlending = ({
 
           drawRoiOnCanvas(canvas, displayRoi);
         }
+      } else if (drawingTool === "pencil" && existingFreehandPath.length > 0) {
+        const imgDimensions =
+          expandedForROI === "image1" ? image1Dimensions : image2Dimensions;
+
+        if (imgDimensions.naturalWidth > 0) {
+          drawFreehandOnCanvas(canvas, existingFreehandPath, {
+            naturalWidth: imgDimensions.naturalWidth,
+            naturalHeight: imgDimensions.naturalHeight,
+          });
+        }
       }
     }
   };
@@ -476,7 +596,8 @@ const ImageBlending = ({
   const startDrawingRect = (e, canvasRef, setRoi, imageNum) => {
     e.stopPropagation();
     e.preventDefault();
-    if (!uploadedImage1 || !uploadedImage2) return;
+    if (!uploadedImage1 || !uploadedImage2 || drawingTool !== "rectangle")
+      return;
     const canvas = canvasRef.current;
     const rect = canvas.getBoundingClientRect();
     const x = e.clientX - rect.left;
@@ -495,12 +616,37 @@ const ImageBlending = ({
     const rect = canvas.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
-    setModalStartPos({ x, y });
-    setIsModalDrawing(true);
 
-    // Clear canvas
-    const ctx = canvas.getContext("2d");
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    if (drawingTool === "rectangle") {
+      setModalStartPos({ x, y });
+      setIsModalDrawing(true);
+      // Clear canvas
+      const ctx = canvas.getContext("2d");
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    } else if (drawingTool === "pencil") {
+      // Get natural coordinates for freehand
+      const img = modalImgRef.current;
+      const imgDimensions =
+        expandedForROI === "image1" ? image1Dimensions : image2Dimensions;
+      const scaleX = imgDimensions.naturalWidth / img.offsetWidth;
+      const scaleY = imgDimensions.naturalHeight / img.offsetHeight;
+
+      const naturalX = x * scaleX;
+      const naturalY = y * scaleY;
+
+      setIsModalDrawing(true);
+      setModalFreehandPath([{ x: naturalX, y: naturalY }]);
+
+      // Clear canvas and start drawing
+      const ctx = canvas.getContext("2d");
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.strokeStyle = "#00ff00";
+      ctx.lineWidth = 3;
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+    }
   };
 
   const handleModalMouseMove = (e) => {
@@ -512,25 +658,44 @@ const ImageBlending = ({
     const mouseY = e.clientY - rect.top;
     const ctx = canvas.getContext("2d");
 
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.strokeStyle = "#00ff00";
-    ctx.lineWidth = 2;
-    ctx.strokeRect(
-      modalStartPos.x,
-      modalStartPos.y,
-      mouseX - modalStartPos.x,
-      mouseY - modalStartPos.y
-    );
+    if (drawingTool === "rectangle") {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.strokeStyle = "#00ff00";
+      ctx.lineWidth = 2;
+      ctx.strokeRect(
+        modalStartPos.x,
+        modalStartPos.y,
+        mouseX - modalStartPos.x,
+        mouseY - modalStartPos.y
+      );
 
-    const width = Math.abs(mouseX - modalStartPos.x);
-    const height = Math.abs(mouseY - modalStartPos.y);
-    ctx.fillStyle = "#00ff00";
-    ctx.font = "16px Arial";
-    ctx.fillText(
-      `${width}x${height}`,
-      modalStartPos.x + width / 2 - 30,
-      modalStartPos.y + height / 2
-    );
+      const width = Math.abs(mouseX - modalStartPos.x);
+      const height = Math.abs(mouseY - modalStartPos.y);
+      ctx.fillStyle = "#00ff00";
+      ctx.font = "16px Arial";
+      ctx.fillText(
+        `${width}x${height}`,
+        modalStartPos.x + width / 2 - 30,
+        modalStartPos.y + height / 2
+      );
+    } else if (drawingTool === "pencil") {
+      // Get natural coordinates for freehand
+      const img = modalImgRef.current;
+      const imgDimensions =
+        expandedForROI === "image1" ? image1Dimensions : image2Dimensions;
+      const scaleX = imgDimensions.naturalWidth / img.offsetWidth;
+      const scaleY = imgDimensions.naturalHeight / img.offsetHeight;
+
+      const naturalX = mouseX * scaleX;
+      const naturalY = mouseY * scaleY;
+
+      // Add point to path
+      setModalFreehandPath((prev) => [...prev, { x: naturalX, y: naturalY }]);
+
+      // Draw on canvas
+      ctx.lineTo(mouseX, mouseY);
+      ctx.stroke();
+    }
   };
 
   const handleModalMouseUp = (e) => {
@@ -541,23 +706,44 @@ const ImageBlending = ({
     const endX = e.clientX - rect.left;
     const endY = e.clientY - rect.top;
 
-    const x = Math.min(modalStartPos.x, endX);
-    const y = Math.min(modalStartPos.y, endY);
-    const width = Math.abs(endX - modalStartPos.x);
-    const height = Math.abs(endY - modalStartPos.y);
+    if (drawingTool === "rectangle") {
+      const x = Math.min(modalStartPos.x, endX);
+      const y = Math.min(modalStartPos.y, endY);
+      const width = Math.abs(endX - modalStartPos.x);
+      const height = Math.abs(endY - modalStartPos.y);
 
-    if (width > 2 && height > 2) {
-      const roi = { x, y, width, height };
-      setModalRoi(roi);
+      if (width > 2 && height > 2) {
+        const roi = { x, y, width, height };
+        setModalRoi(roi);
 
-      const ctx = canvas.getContext("2d");
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.strokeStyle = "#ff0000";
-      ctx.lineWidth = 2;
-      ctx.strokeRect(x, y, width, height);
-      ctx.fillStyle = "#ff0000";
-      ctx.font = "16px Arial";
-      ctx.fillText(`${width}x${height}`, x + width / 2 - 30, y + height / 2);
+        const ctx = canvas.getContext("2d");
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.strokeStyle = "#ff0000";
+        ctx.lineWidth = 2;
+        ctx.strokeRect(x, y, width, height);
+        ctx.fillStyle = "#ff0000";
+        ctx.font = "16px Arial";
+        ctx.fillText(`${width}x${height}`, x + width / 2 - 30, y + height / 2);
+      }
+    } else if (drawingTool === "pencil") {
+      // Generate mask for modal freehand path
+      const img = modalImgRef.current;
+      const imgDimensions =
+        expandedForROI === "image1" ? image1Dimensions : image2Dimensions;
+
+      if (modalFreehandPath.length > 1) {
+        const tempImg = {
+          naturalWidth: imgDimensions.naturalWidth,
+          naturalHeight: imgDimensions.naturalHeight,
+        };
+        const maskDataURL = generateMaskFromFreehand(
+          modalFreehandPath,
+          tempImg
+        );
+
+        // Store the mask for preview
+        setGeneratedMask(maskDataURL);
+      }
     }
 
     setIsModalDrawing(false);
@@ -565,7 +751,7 @@ const ImageBlending = ({
 
   // Save ROI from modal
   const saveModalROI = () => {
-    if (modalRoi) {
+    if (drawingTool === "rectangle" && modalRoi) {
       const img = modalImgRef.current;
       const imgDimensions =
         expandedForROI === "image1" ? image1Dimensions : image2Dimensions;
@@ -585,6 +771,8 @@ const ImageBlending = ({
         if (expandedForROI === "image1") {
           setRoi1(naturalRoi);
           setTempRoi({ ...tempRoi, roi1: naturalRoi });
+          setFreehandPath1([]);
+          setFreehandMask1(null);
 
           // Update main canvas immediately
           if (canvasRef1.current && imgRef1.current) {
@@ -604,6 +792,8 @@ const ImageBlending = ({
         } else {
           setRoi2(naturalRoi);
           setTempRoi({ ...tempRoi, roi2: naturalRoi });
+          setFreehandPath2([]);
+          setFreehandMask2(null);
 
           // Update main canvas immediately
           if (canvasRef2.current && imgRef2.current) {
@@ -622,12 +812,59 @@ const ImageBlending = ({
           }
         }
       }
+    } else if (drawingTool === "pencil" && modalFreehandPath.length > 1) {
+      // Save freehand path from modal
+      if (expandedForROI === "image1") {
+        setFreehandPath1([...modalFreehandPath]);
+        setRoi1(null);
+
+        // Generate and set mask
+        const img = imgRef1.current;
+        if (img) {
+          const maskDataURL = generateMaskFromFreehand(modalFreehandPath, img);
+          setFreehandMask1(maskDataURL);
+        }
+
+        // Update main canvas immediately
+        if (canvasRef1.current && imgRef1.current) {
+          drawFreehandOnCanvas(
+            canvasRef1.current,
+            modalFreehandPath,
+            imgRef1.current
+          );
+        }
+      } else {
+        setFreehandPath2([...modalFreehandPath]);
+        setRoi2(null);
+
+        // Generate and set mask
+        const img = imgRef2.current;
+        if (img) {
+          const maskDataURL = generateMaskFromFreehand(modalFreehandPath, img);
+          setFreehandMask2(maskDataURL);
+        }
+
+        // Update main canvas immediately
+        if (canvasRef2.current && imgRef2.current) {
+          drawFreehandOnCanvas(
+            canvasRef2.current,
+            modalFreehandPath,
+            imgRef2.current
+          );
+        }
+      }
     }
+
+    // Clear modal state
+    setModalRoi(null);
+    setModalFreehandPath([]);
+    setGeneratedMask(null);
     setExpandedForROI(null);
   };
 
   const drawRect = (e, canvasRef) => {
-    if (!isDrawing || currentImage === null) return;
+    if (!isDrawing || currentImage === null || drawingTool !== "rectangle")
+      return;
     e.preventDefault();
     const canvas = canvasRef.current;
     const rect = canvas.getBoundingClientRect();
@@ -683,7 +920,13 @@ const ImageBlending = ({
       };
 
       setRoi(naturalRoi);
-
+      if (imageNum === 1) {
+        setFreehandPath1([]);
+        setFreehandMask1(null);
+      } else {
+        setFreehandPath2([]);
+        setFreehandMask2(null);
+      }
       // Draw ROI on canvas
       drawRoiOnCanvas(canvas, { x, y, width, height });
 
@@ -709,6 +952,145 @@ const ImageBlending = ({
     }
     setIsDrawing(false);
     setCurrentImage(null);
+  };
+
+  // NEW: FREEHAND DRAWING FUNCTIONS
+  const startDrawingFreehand = (e, canvasRef, imageNum) => {
+    e.stopPropagation();
+    e.preventDefault();
+    if (!uploadedImage1 || !uploadedImage2 || drawingTool !== "pencil") return;
+
+    const canvas = canvasRef.current;
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    // Get natural coordinates
+    const img = imageNum === 1 ? imgRef1.current : imgRef2.current;
+    const scaleX = img.naturalWidth / img.offsetWidth;
+    const scaleY = img.naturalHeight / img.offsetHeight;
+
+    const naturalX = x * scaleX;
+    const naturalY = y * scaleY;
+
+    setIsDrawing(true);
+    setCurrentImage(imageNum);
+
+    // Clear rectangle ROI when starting freehand
+    if (imageNum === 1) {
+      setRoi1(null);
+      setFreehandPath1([{ x: naturalX, y: naturalY }]);
+    } else {
+      setRoi2(null);
+      setFreehandPath2([{ x: naturalX, y: naturalY }]);
+    }
+
+    // Clear canvas and start drawing
+    const ctx = canvas.getContext("2d");
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.strokeStyle = "#00ff00";
+    ctx.lineWidth = 3;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+  };
+
+  const drawFreehand = (e, canvasRef, imageNum) => {
+    if (!isDrawing || currentImage === null || drawingTool !== "pencil") return;
+    e.preventDefault();
+
+    const canvas = canvasRef.current;
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    // Get natural coordinates
+    const img = imageNum === 1 ? imgRef1.current : imgRef2.current;
+    const scaleX = img.naturalWidth / img.offsetWidth;
+    const scaleY = img.naturalHeight / img.offsetHeight;
+
+    const naturalX = x * scaleX;
+    const naturalY = y * scaleY;
+
+    // Add point to path
+    if (imageNum === 1) {
+      setFreehandPath1((prev) => [...prev, { x: naturalX, y: naturalY }]);
+    } else {
+      setFreehandPath2((prev) => [...prev, { x: naturalX, y: naturalY }]);
+    }
+
+    // Draw on canvas
+    const ctx = canvas.getContext("2d");
+    ctx.lineTo(x, y);
+    ctx.stroke();
+  };
+
+  const finishDrawingFreehand = (e, canvasRef, imageNum) => {
+    if (!isDrawing || currentImage === null || drawingTool !== "pencil") return;
+    e.preventDefault();
+
+    const img = imageNum === 1 ? imgRef1.current : imgRef2.current;
+
+    // Generate mask from freehand path
+    const currentPath = imageNum === 1 ? freehandPath1 : freehandPath2;
+    if (currentPath.length > 1) {
+      const maskDataURL = generateMaskFromFreehand(currentPath, img);
+      if (imageNum === 1) {
+        setFreehandMask1(maskDataURL);
+      } else {
+        setFreehandMask2(maskDataURL);
+      }
+    }
+
+    setIsDrawing(false);
+    setCurrentImage(null);
+  };
+
+  // Add these helper functions to your component
+  const generateMaskFromROI = (roi, imgElement) => {
+    if (!roi || !imgElement) return null;
+
+    const canvas = document.createElement("canvas");
+    canvas.width = imgElement.naturalWidth;
+    canvas.height = imgElement.naturalHeight;
+    const ctx = canvas.getContext("2d");
+
+    // Create black background
+    ctx.fillStyle = "rgb(0, 0, 0)";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Draw white rectangle for ROI
+    ctx.fillStyle = "rgb(255, 255, 255)";
+    ctx.fillRect(roi.x, roi.y, roi.width, roi.height);
+
+    return canvas.toDataURL("image/png");
+  };
+
+  const createROIPreview = (imageSrc, maskDataURL) => {
+    const canvas = document.createElement("canvas");
+    const img = new Image();
+    img.src = imageSrc;
+
+    return new Promise((resolve) => {
+      img.onload = () => {
+        canvas.width = img.naturalWidth;
+        canvas.height = img.naturalHeight;
+        const ctx = canvas.getContext("2d");
+
+        // Draw original image
+        ctx.drawImage(img, 0, 0);
+
+        // Draw mask overlay
+        const maskImg = new Image();
+        maskImg.src = maskDataURL;
+        ctx.globalAlpha = 0.5;
+        ctx.drawImage(maskImg, 0, 0);
+        ctx.globalAlpha = 1.0;
+
+        resolve(canvas.toDataURL("image/png"));
+      };
+    });
   };
 
   const downloadAsBMP = async () => {
@@ -793,94 +1175,57 @@ const ImageBlending = ({
   };
 
   const handleBlendImages = async () => {
-    if (!uploadedImage1 || !uploadedImage2 || !roi1 || !roi2) {
-      setErrorMessage("Please upload both images and select ROIs");
+    // Validation checks
+    if (!uploadedImage1 || !uploadedImage2) {
+      setErrorMessage("Please upload both images");
       setShowAlert(true);
       return;
     }
+
+    // Check if ROI or freehand is selected for both images
+    const hasImage1Selection =
+      roi1 || (freehandPath1.length > 0 && freehandMask1);
+    const hasImage2Selection =
+      roi2 || (freehandPath2.length > 0 && freehandMask2);
+
+    if (!hasImage1Selection || !hasImage2Selection) {
+      setErrorMessage(
+        "Please select regions on both images (rectangle or freehand)"
+      );
+      setShowAlert(true);
+      return;
+    }
+
     if (isColorImage2 && !selectedChannel) {
       setErrorMessage("Please select a color channel for the color image");
       setShowAlert(true);
       return;
     }
+
     if (profile.credit < 1) {
       setErrorMessage("Insufficient credits to perform blending");
       setShowAlert(true);
       return;
     }
+
     setIsBlending(true);
+
     try {
       const img1 = imgRef1.current;
       const img2 = imgRef2.current;
-
-      // Use stored natural coordinates directly
-      const naturalRoi1 = {
-        x: roi1.x,
-        y: roi1.y,
-        width: roi1.width,
-        height: roi1.height,
-      };
-
-      const naturalRoi2 = {
-        x: roi2.x,
-        y: roi2.y,
-        width: roi2.width,
-        height: roi2.height,
-      };
-
-      console.log("Natural ROI 1:", naturalRoi1);
-      console.log(
-        "Image 1 Natural Dimensions:",
-        img1.naturalWidth,
-        "x",
-        img1.naturalHeight
-      );
-      console.log("Natural ROI 2:", naturalRoi2);
-      console.log(
-        "Image 2 Natural Dimensions:",
-        img2.naturalWidth,
-        "x",
-        img2.naturalHeight
-      );
-
       const uniqueCode = Math.floor(
         100000000000 + Math.random() * 900000000000
       ).toString();
       const formData = new FormData();
 
-      // NEW: Use processed images if available
+      // Basic form data
       formData.append("image1", processedImage1File || image1File);
       formData.append("image2", processedImage2File || image2File);
-
       formData.append("unique_code", uniqueCode);
       formData.append("type", type);
-      formData.append(
-        "image1_coordinates",
-        JSON.stringify({
-          x1: naturalRoi1.x,
-          y1: naturalRoi1.y,
-          x2: naturalRoi1.x + naturalRoi1.width,
-          y2: naturalRoi1.y + naturalRoi1.height,
-          naturalWidth: img1.naturalWidth,
-          naturalHeight: img1.naturalHeight,
-          displayWidth: img1.offsetWidth,
-          displayHeight: img1.offsetHeight,
-        })
-      );
+      formData.append("use_sam", useSAM);
 
-      formData.append(
-        "image2_coordinates",
-        JSON.stringify({
-          x1: naturalRoi2.x,
-          y1: naturalRoi2.y,
-          x2: naturalRoi2.x + naturalRoi2.width,
-          y2: naturalRoi2.y + naturalRoi2.height,
-          naturalWidth: img2.naturalWidth,
-          naturalHeight: img2.naturalHeight,
-          displayWidth: img2.offsetWidth,
-          displayHeight: img2.offsetHeight,
-        })
-      );
+      // Image dimensions
       formData.append(
         "display_dimensions1",
         JSON.stringify({
@@ -896,14 +1241,86 @@ const ImageBlending = ({
         })
       );
 
-      // NEW: Send color channel information
+      // Color information
       formData.append("is_color_image1", isColorImage1);
       formData.append("selected_channel1", selectedChannel1);
       formData.append("is_color_image2", isColorImage2);
       formData.append("selected_channel2", selectedChannel);
-
-      // NEW: Send color output preference
       formData.append("output_color", outputColor && type === "single");
+
+      // Handle Image 1 selection data
+      if (roi1) {
+        // Rectangle mode for Image 1
+        formData.append("image1_selection_type", "rectangle");
+        formData.append(
+          "image1_coordinates",
+          JSON.stringify({
+            x1: roi1.x,
+            y1: roi1.y,
+            x2: roi1.x + roi1.width,
+            y2: roi1.y + roi1.height,
+            naturalWidth: img1.naturalWidth,
+            naturalHeight: img1.naturalHeight,
+            displayWidth: img1.offsetWidth,
+            displayHeight: img1.offsetHeight,
+          })
+        );
+      } else if (freehandPath1.length > 0 && freehandMask1) {
+        // Freehand mode for Image 1
+        formData.append("image1_selection_type", "freehand");
+
+        // Convert mask data URL to blob and append
+        const maskBlob1 = await dataURLToBlob(freehandMask1);
+        formData.append("image1_mask", maskBlob1, "image1_mask.png");
+
+        // Send image dimensions for reference
+        formData.append(
+          "image1_dimensions",
+          JSON.stringify({
+            naturalWidth: img1.naturalWidth,
+            naturalHeight: img1.naturalHeight,
+            displayWidth: img1.offsetWidth,
+            displayHeight: img1.offsetHeight,
+          })
+        );
+      }
+
+      // Handle Image 2 selection data
+      if (roi2) {
+        // Rectangle mode for Image 2
+        formData.append("image2_selection_type", "rectangle");
+        formData.append(
+          "image2_coordinates",
+          JSON.stringify({
+            x1: roi2.x,
+            y1: roi2.y,
+            x2: roi2.x + roi2.width,
+            y2: roi2.y + roi2.height,
+            naturalWidth: img2.naturalWidth,
+            naturalHeight: img2.naturalHeight,
+            displayWidth: img2.offsetWidth,
+            displayHeight: img2.offsetHeight,
+          })
+        );
+      } else if (freehandPath2.length > 0 && freehandMask2) {
+        // Freehand mode for Image 2
+        formData.append("image2_selection_type", "freehand");
+
+        // Convert mask data URL to blob and append
+        const maskBlob2 = await dataURLToBlob(freehandMask2);
+        formData.append("image2_mask", maskBlob2, "image2_mask.png");
+
+        // Send image dimensions for reference
+        formData.append(
+          "image2_dimensions",
+          JSON.stringify({
+            naturalWidth: img2.naturalWidth,
+            naturalHeight: img2.naturalHeight,
+            displayWidth: img2.offsetWidth,
+            displayHeight: img2.offsetHeight,
+          })
+        );
+      }
 
       const token = localStorage.getItem("authToken");
       const response = await axios.post(
@@ -916,10 +1333,10 @@ const ImageBlending = ({
           },
         }
       );
+
       if (response.data.success) {
         setBlendedResult(response.data.blended_image);
 
-        // NEW: Handle color output
         if (type === "single" && response.data.color_blended_image) {
           setColorBlendedResult(response.data.color_blended_image);
         } else {
@@ -943,6 +1360,27 @@ const ImageBlending = ({
     } finally {
       setIsBlending(false);
     }
+  };
+
+  // Helper function to convert data URL to blob
+  const dataURLToBlob = (dataURL) => {
+    return new Promise((resolve) => {
+      const canvas = document.createElement("canvas");
+      const ctx = canvas.getContext("2d");
+      const img = new Image();
+
+      img.onload = () => {
+        canvas.width = img.width;
+        canvas.height = img.height;
+        ctx.drawImage(img, 0, 0);
+
+        canvas.toBlob((blob) => {
+          resolve(blob);
+        }, "image/png");
+      };
+
+      img.src = dataURL;
+    });
   };
 
   const expandImage = (imageSrc) => {
@@ -1006,9 +1444,60 @@ const ImageBlending = ({
 
   return (
     <div className="p-4 ml-28 dark:bg-[#1a1a1a] bg-white rounded-lg shadow-lg">
-      <h2 className="text-xl font-bold mb-4 dark:text-white text-gray-800">
-        Renderer
-      </h2>
+      <div className="flex justify-between items-center mb-4">
+        <h2 className="text-xl font-bold dark:text-white text-gray-800">
+          Renderer
+        </h2>
+        <div className="flex items-center space-x-4">
+          <button
+            className={`flex items-center px-3 py-1 rounded-md transition-all
+              ${
+                drawingTool === "rectangle"
+                  ? "bg-indigo-600 text-white shadow-md hover:bg-indigo-700 border border-indigo-300 dark:border-indigo-500"
+                  : "bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 border border-transparent"
+              }`}
+            onClick={() => setDrawingTool("rectangle")}
+          >
+            <MdOutlineRectangle className="mr-1" size={18} />
+            Rectangle
+          </button>
+          <button
+            className={`flex items-center px-3 py-1 rounded-md transition-all
+              ${
+                drawingTool === "pencil"
+                  ? "bg-indigo-600 text-white shadow-md hover:bg-indigo-700 border border-indigo-300 dark:border-indigo-500"
+                  : "bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 border border-transparent"
+              }`}
+            onClick={() => setDrawingTool("pencil")}
+          >
+            <FaPencilAlt className="mr-1" size={14} />
+            FreeHand
+          </button>
+          <label className="flex items-center space-x-2 cursor-pointer group">
+            <div
+              className={`relative rounded-md p-1 transition-all ${
+                useSAM ? "bg-indigo-100 dark:bg-indigo-900/50" : ""
+              }`}
+            >
+              <input
+                type="checkbox"
+                checked={useSAM}
+                onChange={() => setUseSAM(!useSAM)}
+                className="form-checkbox h-4 w-4 text-indigo-600 dark:text-indigo-400 rounded focus:ring-indigo-500"
+              />
+            </div>
+            <span
+              className={`text-sm transition-all ${
+                useSAM
+                  ? "font-medium text-indigo-700 dark:text-indigo-300"
+                  : "text-gray-700 dark:text-gray-300"
+              }`}
+            >
+              Segment
+            </span>
+          </label>
+        </div>
+      </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
         {/* Image 1 Upload and Canvas */}
@@ -1036,31 +1525,58 @@ const ImageBlending = ({
                   <canvas
                     ref={canvasRef1}
                     className="absolute top-0 left-0 w-full h-full cursor-crosshair"
-                    onMouseDown={(e) =>
-                      startDrawingRect(e, canvasRef1, setRoi1, 1)
-                    }
-                    onMouseMove={(e) => drawRect(e, canvasRef1)}
-                    onMouseUp={(e) =>
-                      finishDrawingRect(e, canvasRef1, setRoi1, 1)
-                    }
-                    onMouseLeave={(e) =>
-                      finishDrawingRect(e, canvasRef1, setRoi1, 1)
-                    }
-                  />
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setTempRoi({ ...tempRoi, roi1: roi1 });
+                    onMouseDown={(e) => {
+                      if (drawingTool === "rectangle") {
+                        startDrawingRect(e, canvasRef1, setRoi1, 1);
+                      } else if (drawingTool === "pencil") {
+                        startDrawingFreehand(e, canvasRef1, 1);
+                      }
                     }}
-                    className="absolute top-2 right-2 bg-black bg-opacity-50 text-white p-1 rounded-full hover:bg-opacity-70"
-                  >
-                    <AiOutlineExpand
-                      size={20}
+                    onMouseMove={(e) => {
+                      if (drawingTool === "rectangle") {
+                        drawRect(e, canvasRef1);
+                      } else if (drawingTool === "pencil") {
+                        drawFreehand(e, canvasRef1, 1);
+                      }
+                    }}
+                    onMouseUp={(e) => {
+                      if (drawingTool === "rectangle") {
+                        finishDrawingRect(e, canvasRef1, setRoi1, 1);
+                      } else if (drawingTool === "pencil") {
+                        finishDrawingFreehand(e, canvasRef1, 1);
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (drawingTool === "rectangle") {
+                        finishDrawingRect(e, canvasRef1, setRoi1, 1);
+                      } else if (drawingTool === "pencil") {
+                        finishDrawingFreehand(e, canvasRef1, 1);
+                      }
+                    }}
+                  />
+                  <div className="absolute top-0 right-2 p-1">
+                    <button
                       onClick={(e) => {
-                        setExpandedForROI("image1");
+                        e.stopPropagation();
+                        setTempRoi({ ...tempRoi, roi1: roi1 });
                       }}
-                    />
-                  </button>
+                      className="absolute top-2 right-2 bg-black bg-opacity-50 text-white p-1 rounded-full hover:bg-opacity-70 flex items-center gap-3"
+                    >
+                      {/* Expand Tool */}
+                      <div className="relative group">
+                        <AiOutlineExpand
+                          size={20}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setExpandedForROI("image1");
+                          }}
+                        />
+                        <span className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 text-xs bg-gray-800 text-white rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+                          Expand View
+                        </span>
+                      </div>
+                    </button>
+                  </div>
                 </div>
               ) : (
                 <>
@@ -1177,31 +1693,58 @@ const ImageBlending = ({
                   <canvas
                     ref={canvasRef2}
                     className="absolute top-0 left-0 w-full h-full cursor-crosshair"
-                    onMouseDown={(e) =>
-                      startDrawingRect(e, canvasRef2, setRoi2, 2)
-                    }
-                    onMouseMove={(e) => drawRect(e, canvasRef2)}
-                    onMouseUp={(e) =>
-                      finishDrawingRect(e, canvasRef2, setRoi2, 2)
-                    }
-                    onMouseLeave={(e) =>
-                      finishDrawingRect(e, canvasRef2, setRoi2, 2)
-                    }
-                  />
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setTempRoi({ ...tempRoi, roi2: roi2 });
+                    onMouseDown={(e) => {
+                      if (drawingTool === "rectangle") {
+                        startDrawingRect(e, canvasRef2, setRoi2, 2);
+                      } else if (drawingTool === "pencil") {
+                        startDrawingFreehand(e, canvasRef2, 2);
+                      }
                     }}
-                    className="absolute top-2 right-2 bg-black bg-opacity-50 text-white p-1 rounded-full hover:bg-opacity-70"
-                  >
-                    <AiOutlineExpand
-                      size={20}
+                    onMouseMove={(e) => {
+                      if (drawingTool === "rectangle") {
+                        drawRect(e, canvasRef2);
+                      } else if (drawingTool === "pencil") {
+                        drawFreehand(e, canvasRef2, 2);
+                      }
+                    }}
+                    onMouseUp={(e) => {
+                      if (drawingTool === "rectangle") {
+                        finishDrawingRect(e, canvasRef2, setRoi2, 2);
+                      } else if (drawingTool === "pencil") {
+                        finishDrawingFreehand(e, canvasRef2, 2);
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (drawingTool === "rectangle") {
+                        finishDrawingRect(e, canvasRef2, setRoi2, 2);
+                      } else if (drawingTool === "pencil") {
+                        finishDrawingFreehand(e, canvasRef2, 2);
+                      }
+                    }}
+                  />
+                  <div className="absolute top-0 right-2 p-1">
+                    <button
                       onClick={(e) => {
-                        setExpandedForROI("image2");
+                        e.stopPropagation();
+                        setTempRoi({ ...tempRoi, roi2: roi2 });
                       }}
-                    />
-                  </button>
+                      className="absolute top-2 right-2 bg-black bg-opacity-50 text-white p-1 rounded-full hover:bg-opacity-70 flex items-center gap-3"
+                    >
+                      {/* Expand Tool */}
+                      <div className="relative group">
+                        <AiOutlineExpand
+                          size={20}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setExpandedForROI("image2");
+                          }}
+                        />
+                        <span className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 text-xs bg-gray-800 text-white rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+                          Expand View
+                        </span>
+                      </div>
+                    </button>
+                  </div>
                 </div>
               ) : (
                 <>
@@ -1335,8 +1878,8 @@ const ImageBlending = ({
         disabled={
           !uploadedImage1 ||
           !uploadedImage2 ||
-          !roi1 ||
-          !roi2 ||
+          !(roi1 || (freehandPath1.length > 0 && freehandMask1)) ||
+          !(roi2 || (freehandPath2.length > 0 && freehandMask2)) ||
           isBlending ||
           (isColorImage2 && !selectedChannel) ||
           (isColorImage1 && !selectedChannel1)
@@ -1378,51 +1921,50 @@ const ImageBlending = ({
       {blendedResult && (
         // {blendedResult && type === "single" && (
         <section>
-          <div className=" flex flex-wrap " >
-
-          <div className="m-4  ">
-            <h3 className="text-lg font-semibold dark:text-white">
-              Rendered Image (Single Spot)
-            </h3>
-            <div className="relative">
-              <img
-                src={`${BACKEND_URL}/${blendedResult}`}
-                alt="Blended result"
-                className="max-h-96 w-auto object-contain rounded-md border dark:border-gray-600"
-              />
-              <button
-                onClick={() => expandImage(`${BACKEND_URL}/${blendedResult}`)}
-                className="absolute top-2 right-2 bg-black bg-opacity-50 text-white p-1 rounded-full hover:bg-opacity-70"
-              >
-                <AiOutlineExpand size={20} />
-              </button>
+          <div className=" flex flex-wrap ">
+            <div className="m-4  ">
+              <h3 className="text-lg font-semibold dark:text-white">
+                Rendered Image (Single Spot)
+              </h3>
+              <div className="relative">
+                <img
+                  src={`${BACKEND_URL}/${blendedResult}`}
+                  alt="Blended result"
+                  className="max-h-96 w-auto object-contain rounded-md border dark:border-gray-600"
+                />
+                <button
+                  onClick={() => expandImage(`${BACKEND_URL}/${blendedResult}`)}
+                  className="absolute top-2 right-2 bg-black bg-opacity-50 text-white p-1 rounded-full hover:bg-opacity-70"
+                >
+                  <AiOutlineExpand size={20} />
+                </button>
+              </div>
             </div>
-              </div>
 
-          <div>
-            {type === "multiple" && (
-              <div className="m-4">
-                <h3 className="text-lg font-semibold dark:text-white">
-                  Phase Contrast
-                </h3>
-                <div className="relative">
-                  <img
-                    src={`${BACKEND_URL}/${phase_contrast}`}
-                    alt="Blended result"
-                    className="max-h-96 w-auto object-contain rounded-md border dark:border-gray-600"
-                  />
-                  <button
-                    onClick={() =>
-                      expandImage(`${BACKEND_URL}/${phase_contrast}`)
-                    }
-                    className="absolute top-2 right-2 bg-black bg-opacity-50 text-white p-1 rounded-full hover:bg-opacity-70"
-                  >
-                    <AiOutlineExpand size={20} />
-                  </button>
+            <div>
+              {type === "multiple" && (
+                <div className="m-4">
+                  <h3 className="text-lg font-semibold dark:text-white">
+                    Phase Contrast
+                  </h3>
+                  <div className="relative">
+                    <img
+                      src={`${BACKEND_URL}/${phase_contrast}`}
+                      alt="Blended result"
+                      className="max-h-96 w-auto object-contain rounded-md border dark:border-gray-600"
+                    />
+                    <button
+                      onClick={() =>
+                        expandImage(`${BACKEND_URL}/${phase_contrast}`)
+                      }
+                      className="absolute top-2 right-2 bg-black bg-opacity-50 text-white p-1 rounded-full hover:bg-opacity-70"
+                    >
+                      <AiOutlineExpand size={20} />
+                    </button>
+                  </div>
                 </div>
-              </div>
-            )}
-          </div>
+              )}
+            </div>
 
             {/* NEW: COLOR OUTPUT SECTION */}
             {isColorImage1 && selectedChannel1 !== "rgb" && (
@@ -1532,7 +2074,6 @@ const ImageBlending = ({
               </div>
             )}
           </div>
-
 
           {type === "multiple" && (
             <div className=" flex flex-wrap ">
