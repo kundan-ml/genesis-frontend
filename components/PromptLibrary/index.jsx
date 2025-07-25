@@ -36,8 +36,6 @@
 //       "single spot,contact lens,cuvette,mold contamination,ionization bubbles",
 //       "single spot,contact lens,cuvette,starburst on center of lens,air bubbles"
 
-
-
 //     ],
 //     'LS3 LPC': [
 //       "contact lens,shell,crumpled center,folded center",
@@ -105,14 +103,12 @@
 //       "monofocal,fov,dark field bit-3,lens,haptic tip and gusset damage,high resolution",
 //       "monofocal,fov,dark field,lens,haptic tip and gusset damage,high resolution",
 
-
 //       "monofocal,fov,bright field,lens,haptics,optic edge damage,high resolution",
 //       "monofocal,fov,dark field bit-1,lens,haptics,optic edge damage,high resolution",
 //       "monofocal,fov,dark field bit-2,lens,haptics,optic edge damage,high resolution",
 //       "monofocal,fov,dark field bit-3,lens,haptics,optic edge damage,high resolution",
 //       "monofocal,fov,dark field,lens,haptics,optic edge damage,high resolution",
 //       "monofocal,single spot,lens,optic edge damage,high resolution",
-
 
 //       "toric,fov,dark field,lens,haptics,orange peel,high resolution",
 //       "toric,single spot,lens,orange peel,high resolution",
@@ -124,20 +120,17 @@
 //       "multifocal,toric,fov,dark field,lens,haptics,flash,high resolution",
 //       "multifocal,toric,single spot,lens,flash,high resolution",
 
-
 //       "multifocal,toric,fov,bright field,lens,haptic damage,high resolution",
 //       "multifocal,toric,fov,dark field bit-1,lens,haptic damage,high resolution",
 //       "multifocal,toric,fov,dark field bit-2,lens,haptic damage,high resolution",
 //       "multifocal,toric,fov,dark field bit-3,lens,haptic damage,high resolution",
 //       "multifocal,toric,fov,dark field,lens,haptic damage,high resolution",
 
-
 //       "toric,fov,bright field,lens,narrow haptic,high resolution",
 //       "toric,fov,dark field bit-1,lens,narrow haptic,high resolution",
 //       "toric,fov,dark field bit-2,lens,narrow haptic,high resolution",
 //       "toric,fov,dark field bit-3,lens,narrow haptic,high resolution",
 //       "toric,fov,dark field,lens,narrow haptic,high resolution",
-
 
 //       "multifocal,toric,fov,bright field,lens,haptics,optic surface damage,high resolution",
 //       "multifocal,toric,fov,dark field bit-1,lens,haptics,optic surface damage,high resolution",
@@ -146,11 +139,9 @@
 //       "multifocal,toric,fov,dark field,lens,haptics,optic surface damage,high resolution",
 //       "multifocal,toric,single spot,lens,optic surface damage,high resolution",
 
-
 //       "multifocal,fov,dark field bit-1,lens,haptics,haze,high resolution",
 //       "multifocal,fov,dark field bit-2,lens,haptics,haze,high resolution",
 //       "multifocal,fov,dark field bit-3,lens,haptics,haze,high resolution",
-
 
 //       "multifocal,toric,fov,bright field,lens,haptics,strings,fibres,high resolution",
 //       "multifocal,toric,fov,dark field bit-1,lens,haptics,strings,fibres,high resolution",
@@ -165,14 +156,12 @@
 //       "multifocal,fov,dark field bit-3,lens,haptics,water underfill,high resolution",
 //       "multifocal,fov,dark field,lens,haptics,water underfill,high resolution",
 
-
 //       "multifocal,fov,bright field,lens,haptics,particulate,high resolution",
 //       "multifocal,fov,dark field bit-1,lens,haptics,particulate,high resolution",
 //       "multifocal,fov,dark field bit-2,lens,haptics,particulate,high resolution",
 //       "multifocal,fov,dark field bit-3,lens,haptics,particulate,high resolution",
 //       "multifocal,fov,dark field,lens,haptics,particulate,high resolution",
 //       "multifocal,single spot,lens,particulate,high resolution",
-
 
 //       "monofocal,fov,single spot,lens,scratch,high resolution"
 
@@ -227,7 +216,6 @@
 //           />
 //         </div>
 
-
 //   <div className="flex justify-center space-x-6 mb-8 text-transparent bg-clip-text bg-gradient-to-r from-[#4F46E5] to-[#E114E5]">
 //       {['LS3 BV', 'LS3 LPC', 'IOL Lens'].map((category) => (
 //         <button
@@ -242,7 +230,7 @@
 //         </button>
 //       ))}
 //     </div>
-    
+
 //         {/* Display Filtered Prompts */}
 //         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
 //           {Object.keys(filteredPrompts).map((category) => (
@@ -266,21 +254,18 @@
 //   );
 // };
 
-// export default PromptLibraryPage; 
-
-
-
+// export default PromptLibraryPage;
 
 import React, { useState, useMemo } from "react";
 import Fuse from "fuse.js";
 
 const PromptLibraryPage = () => {
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState("");
+  const [selectedCategories, setSelectedCategories] = useState([]);
 
   // Sample prompts categorized into LS3 BV, LS3 LPC, and IOL Lens
   const prompts = {
-    'LS3 BV': [
+    "LS3 BV": [
       "single spot,contact lens,cuvette,multiple air bubbles",
       "phase contrast,contact lens,cuvette,bottle cap edge",
       "single spot,contact lens,cuvette,dosing bubble",
@@ -308,12 +293,9 @@ const PromptLibraryPage = () => {
       "single spot,contact lens,cuvette,multiple water schlieren on center of lens",
       "phase contrast,contact lens,cuvette,edge tear on lens edge,bottle cap edge",
       "single spot,contact lens,cuvette,mold contamination,ionization bubbles",
-      "single spot,contact lens,cuvette,starburst on center of lens,air bubbles"
-
-
-
+      "single spot,contact lens,cuvette,starburst on center of lens,air bubbles",
     ],
-    'LS3 LPC': [
+    "LS3 LPC": [
       "contact lens,shell,crumpled center,folded center",
       "contact lens,shell,bright lens edge",
       "contact lens,shell,folded lens edge,type c",
@@ -344,10 +326,9 @@ const PromptLibraryPage = () => {
 
       "contact lens,shell,two multiple lens",
 
-      "contact lens,shell,more multiple lens"
-
+      "contact lens,shell,more multiple lens",
     ],
-    'IOL Lens': [
+    "IOL Lens": [
       "monofocal,fov,bright field,lens,haptics,fracture,high resolution",
       "monofocal,fov,dark field bit-1,lens,haptics,fracture,high resolution",
       "monofocal,fov,dark field bit-2,lens,haptics,fracture,high resolution",
@@ -379,14 +360,12 @@ const PromptLibraryPage = () => {
       "monofocal,fov,dark field bit-3,lens,haptic tip and gusset damage,high resolution",
       "monofocal,fov,dark field,lens,haptic tip and gusset damage,high resolution",
 
-
       "monofocal,fov,bright field,lens,haptics,optic edge damage,high resolution",
       "monofocal,fov,dark field bit-1,lens,haptics,optic edge damage,high resolution",
       "monofocal,fov,dark field bit-2,lens,haptics,optic edge damage,high resolution",
       "monofocal,fov,dark field bit-3,lens,haptics,optic edge damage,high resolution",
       "monofocal,fov,dark field,lens,haptics,optic edge damage,high resolution",
       "monofocal,single spot,lens,optic edge damage,high resolution",
-
 
       "toric,fov,dark field,lens,haptics,orange peel,high resolution",
       "toric,single spot,lens,orange peel,high resolution",
@@ -398,20 +377,17 @@ const PromptLibraryPage = () => {
       "multifocal,toric,fov,dark field,lens,haptics,flash,high resolution",
       "multifocal,toric,single spot,lens,flash,high resolution",
 
-
       "multifocal,toric,fov,bright field,lens,haptic damage,high resolution",
       "multifocal,toric,fov,dark field bit-1,lens,haptic damage,high resolution",
       "multifocal,toric,fov,dark field bit-2,lens,haptic damage,high resolution",
       "multifocal,toric,fov,dark field bit-3,lens,haptic damage,high resolution",
       "multifocal,toric,fov,dark field,lens,haptic damage,high resolution",
 
-
       "toric,fov,bright field,lens,narrow haptic,high resolution",
       "toric,fov,dark field bit-1,lens,narrow haptic,high resolution",
       "toric,fov,dark field bit-2,lens,narrow haptic,high resolution",
       "toric,fov,dark field bit-3,lens,narrow haptic,high resolution",
       "toric,fov,dark field,lens,narrow haptic,high resolution",
-
 
       "multifocal,toric,fov,bright field,lens,haptics,optic surface damage,high resolution",
       "multifocal,toric,fov,dark field bit-1,lens,haptics,optic surface damage,high resolution",
@@ -420,11 +396,9 @@ const PromptLibraryPage = () => {
       "multifocal,toric,fov,dark field,lens,haptics,optic surface damage,high resolution",
       "multifocal,toric,single spot,lens,optic surface damage,high resolution",
 
-
       "multifocal,fov,dark field bit-1,lens,haptics,haze,high resolution",
       "multifocal,fov,dark field bit-2,lens,haptics,haze,high resolution",
       "multifocal,fov,dark field bit-3,lens,haptics,haze,high resolution",
-
 
       "multifocal,toric,fov,bright field,lens,haptics,strings,fibres,high resolution",
       "multifocal,toric,fov,dark field bit-1,lens,haptics,strings,fibres,high resolution",
@@ -439,7 +413,6 @@ const PromptLibraryPage = () => {
       "multifocal,fov,dark field bit-3,lens,haptics,water underfill,high resolution",
       "multifocal,fov,dark field,lens,haptics,water underfill,high resolution",
 
-
       "multifocal,fov,bright field,lens,haptics,particulate,high resolution",
       "multifocal,fov,dark field bit-1,lens,haptics,particulate,high resolution",
       "multifocal,fov,dark field bit-2,lens,haptics,particulate,high resolution",
@@ -447,9 +420,7 @@ const PromptLibraryPage = () => {
       "multifocal,fov,dark field,lens,haptics,particulate,high resolution",
       "multifocal,single spot,lens,particulate,high resolution",
 
-
-      "monofocal,fov,single spot,lens,scratch,high resolution"
-
+      "monofocal,fov,single spot,lens,scratch,high resolution",
     ],
   };
 
@@ -477,15 +448,15 @@ const PromptLibraryPage = () => {
     let results = allPrompts;
 
     if (searchQuery.trim()) {
-      results = fuse.search(searchQuery).map((result) => result.item);
+      results = fuse.search(searchQuery).map((r) => r.item);
     }
 
-    if (selectedCategory) {
-      results = results.filter((prompt) => prompt.category === selectedCategory);
+    if (selectedCategories.length > 0) {
+      results = results.filter((p) => selectedCategories.includes(p.category));
     }
 
     return results;
-  }, [searchQuery, selectedCategory, fuse]);
+  }, [searchQuery, selectedCategories, fuse]);
 
   // Group filtered prompts by category
   const groupedPrompts = filteredPrompts.reduce((acc, prompt) => {
@@ -498,7 +469,11 @@ const PromptLibraryPage = () => {
 
   // Handle category selection toggle
   const handleClick = (category) => {
-    setSelectedCategory((prev) => (prev === category ? "" : category));
+    setSelectedCategories((prev) =>
+      prev.includes(category)
+        ? prev.filter((c) => c !== category)
+        : [...prev, category]
+    );
   };
 
   return (
@@ -530,7 +505,7 @@ const PromptLibraryPage = () => {
             <button
               key={category}
               className={`px-6 py-2 rounded-full dark:text-white text-black border-2 transition-all duration-300 ease-in-out transform hover:scale-105 hover:bg-gradient-to-r from-[#4F46E5] to-[#E114E5] focus:ring-2 focus:ring-[#E114E5] ${
-                selectedCategory === category
+                selectedCategories.includes(category)
                   ? "bg-gradient-to-r from-[#4F46E5] to-[#E114E5] border-[#E114E5] shadow-sm"
                   : "bg-transparent dark:border-white border-gray-400"
               }`}
