@@ -242,6 +242,7 @@ const Anomaly = ({ profile, prompt, darkTheme, setDarkTheme }) => {
       setErrorMessage(error.message);
       setShowAlert(true);
     } finally {
+      setStep(2); // Reset step to 2 after detection
       setLoading(false);
     }
   };
