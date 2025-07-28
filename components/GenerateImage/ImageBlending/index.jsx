@@ -97,6 +97,16 @@ const ImageBlending = ({
   const [freehandMask1, setFreehandMask1] = useState(null);
   const [freehandMask2, setFreehandMask2] = useState(null);
 
+  // Add these new state variables to your existing state section
+  const [polylinePath1, setPolylinePath1] = useState([]);
+  const [polylinePath2, setPolylinePath2] = useState([]);
+  const [modalPolylinePath, setModalPolylinePath] = useState([]);
+  const [polylineMask1, setPolylineMask1] = useState(null);
+  const [polylineMask2, setPolylineMask2] = useState(null);
+  const [isPolylineComplete1, setIsPolylineComplete1] = useState(false);
+  const [isPolylineComplete2, setIsPolylineComplete2] = useState(false);
+  const [modalPolylineComplete, setModalPolylineComplete] = useState(false);
+
   const canvasRef1 = useRef(null);
   const canvasRef2 = useRef(null);
   const imgRef1 = useRef(null);
@@ -367,6 +377,10 @@ const ImageBlending = ({
       // Draw existing ROI if available
       const roi = imageNum === 1 ? roi1 : roi2;
       const freehandPath = imageNum === 1 ? freehandPath1 : freehandPath2;
+      const polylinePath = imageNum === 1 ? polylinePath1 : polylinePath2;
+      const isPolylineComplete =
+        imageNum === 1 ? isPolylineComplete1 : isPolylineComplete2;
+
       if (roi && img.naturalWidth > 0 && drawingTool === "rectangle") {
         const scaleX = img.offsetWidth / img.naturalWidth;
         const scaleY = img.offsetHeight / img.naturalHeight;
@@ -385,6 +399,18 @@ const ImageBlending = ({
         drawingTool === "pencil"
       ) {
         drawFreehandOnCanvas(canvas, freehandPath, img);
+      } else if (
+        polylinePath.length > 0 &&
+        img.naturalWidth > 0 &&
+        drawingTool === "polyline"
+      ) {
+        drawPolylineOnCanvas(
+          canvas,
+          polylinePath,
+          img,
+          "#ff0000",
+          isPolylineComplete
+        );
       }
     }
   };
@@ -545,7 +571,7 @@ const ImageBlending = ({
     }
   };
 
-  // Initialize modal canvas
+  // Updated initModalCanvas function to properly show existing polylines
   const initModalCanvas = () => {
     const canvas = modalCanvasRef.current;
     const img = modalImgRef.current;
@@ -553,41 +579,102 @@ const ImageBlending = ({
       canvas.width = img.offsetWidth;
       canvas.height = img.offsetHeight;
 
-      // Draw existing ROI if available
-      const existingRoi =
-        expandedForROI === "image1"
-          ? tempRoi.roi1 || roi1
-          : tempRoi.roi2 || roi2;
+      // Draw existing selections based on current drawing tool and which image is expanded
+      if (expandedForROI === "image1") {
+        const existingRoi = tempRoi.roi1 || roi1;
+        const existingFreehandPath = freehandPath1;
+        const existingPolylinePath = polylinePath1;
+        const isPolyComplete = isPolylineComplete1;
 
-      const existingFreehandPath =
-        expandedForROI === "image1" ? freehandPath1 : freehandPath2;
-
-      if (existingRoi) {
-        const imgDimensions =
-          expandedForROI === "image1" ? image1Dimensions : image2Dimensions;
-
-        if (imgDimensions.naturalWidth > 0) {
-          const scaleX = img.offsetWidth / imgDimensions.naturalWidth;
-          const scaleY = img.offsetHeight / imgDimensions.naturalHeight;
-
+        if (
+          drawingTool === "rectangle" &&
+          existingRoi &&
+          image1Dimensions.naturalWidth > 0
+        ) {
+          const scaleX = img.offsetWidth / image1Dimensions.naturalWidth;
+          const scaleY = img.offsetHeight / image1Dimensions.naturalHeight;
           const displayRoi = {
             x: existingRoi.x * scaleX,
             y: existingRoi.y * scaleY,
             width: existingRoi.width * scaleX,
             height: existingRoi.height * scaleY,
           };
-
           drawRoiOnCanvas(canvas, displayRoi);
-        }
-      } else if (drawingTool === "pencil" && existingFreehandPath.length > 0) {
-        const imgDimensions =
-          expandedForROI === "image1" ? image1Dimensions : image2Dimensions;
-
-        if (imgDimensions.naturalWidth > 0) {
+        } else if (
+          drawingTool === "pencil" &&
+          existingFreehandPath.length > 0 &&
+          image1Dimensions.naturalWidth > 0
+        ) {
           drawFreehandOnCanvas(canvas, existingFreehandPath, {
-            naturalWidth: imgDimensions.naturalWidth,
-            naturalHeight: imgDimensions.naturalHeight,
+            naturalWidth: image1Dimensions.naturalWidth,
+            naturalHeight: image1Dimensions.naturalHeight,
           });
+        } else if (
+          drawingTool === "polyline" &&
+          existingPolylinePath.length > 0 &&
+          image1Dimensions.naturalWidth > 0
+        ) {
+          // Set modal polyline path from existing path
+          setModalPolylinePath([...existingPolylinePath]);
+          setModalPolylineComplete(isPolyComplete);
+          drawPolylineOnCanvas(
+            canvas,
+            existingPolylinePath,
+            {
+              naturalWidth: image1Dimensions.naturalWidth,
+              naturalHeight: image1Dimensions.naturalHeight,
+            },
+            "#ff0000",
+            isPolyComplete
+          );
+        }
+      } else if (expandedForROI === "image2") {
+        const existingRoi = tempRoi.roi2 || roi2;
+        const existingFreehandPath = freehandPath2;
+        const existingPolylinePath = polylinePath2;
+        const isPolyComplete = isPolylineComplete2;
+
+        if (
+          drawingTool === "rectangle" &&
+          existingRoi &&
+          image2Dimensions.naturalWidth > 0
+        ) {
+          const scaleX = img.offsetWidth / image2Dimensions.naturalWidth;
+          const scaleY = img.offsetHeight / image2Dimensions.naturalHeight;
+          const displayRoi = {
+            x: existingRoi.x * scaleX,
+            y: existingRoi.y * scaleY,
+            width: existingRoi.width * scaleX,
+            height: existingRoi.height * scaleY,
+          };
+          drawRoiOnCanvas(canvas, displayRoi);
+        } else if (
+          drawingTool === "pencil" &&
+          existingFreehandPath.length > 0 &&
+          image2Dimensions.naturalWidth > 0
+        ) {
+          drawFreehandOnCanvas(canvas, existingFreehandPath, {
+            naturalWidth: image2Dimensions.naturalWidth,
+            naturalHeight: image2Dimensions.naturalHeight,
+          });
+        } else if (
+          drawingTool === "polyline" &&
+          existingPolylinePath.length > 0 &&
+          image2Dimensions.naturalWidth > 0
+        ) {
+          // Set modal polyline path from existing path
+          setModalPolylinePath([...existingPolylinePath]);
+          setModalPolylineComplete(isPolyComplete);
+          drawPolylineOnCanvas(
+            canvas,
+            existingPolylinePath,
+            {
+              naturalWidth: image2Dimensions.naturalWidth,
+              naturalHeight: image2Dimensions.naturalHeight,
+            },
+            "#ff0000",
+            isPolyComplete
+          );
         }
       }
     }
@@ -853,11 +940,64 @@ const ImageBlending = ({
           );
         }
       }
+    } else if (drawingTool === "polyline" && modalPolylinePath.length > 2) {
+      // Save polyline path from modal
+      if (expandedForROI === "image1") {
+        setPolylinePath1([...modalPolylinePath]);
+        setIsPolylineComplete1(modalPolylineComplete);
+        setRoi1(null);
+        setFreehandPath1([]);
+        setFreehandMask1(null);
+
+        // Generate and set mask
+        const img = imgRef1.current;
+        if (img && modalPolylineComplete) {
+          const maskDataURL = generateMaskFromPolyline(modalPolylinePath, img);
+          setPolylineMask1(maskDataURL);
+        }
+
+        // Update main canvas immediately
+        if (canvasRef1.current && imgRef1.current) {
+          drawPolylineOnCanvas(
+            canvasRef1.current,
+            modalPolylinePath,
+            imgRef1.current,
+            "#ff0000",
+            modalPolylineComplete
+          );
+        }
+      } else {
+        setPolylinePath2([...modalPolylinePath]);
+        setIsPolylineComplete2(modalPolylineComplete);
+        setRoi2(null);
+        setFreehandPath2([]);
+        setFreehandMask2(null);
+
+        // Generate and set mask
+        const img = imgRef2.current;
+        if (img && modalPolylineComplete) {
+          const maskDataURL = generateMaskFromPolyline(modalPolylinePath, img);
+          setPolylineMask2(maskDataURL);
+        }
+
+        // Update main canvas immediately
+        if (canvasRef2.current && imgRef2.current) {
+          drawPolylineOnCanvas(
+            canvasRef2.current,
+            modalPolylinePath,
+            imgRef2.current,
+            "#ff0000",
+            modalPolylineComplete
+          );
+        }
+      }
     }
 
     // Clear modal state
     setModalRoi(null);
     setModalFreehandPath([]);
+    setModalPolylinePath([]);
+    setModalPolylineComplete(false);
     setGeneratedMask(null);
     setExpandedForROI(null);
   };
@@ -1047,6 +1187,377 @@ const ImageBlending = ({
     setCurrentImage(null);
   };
 
+  // Updated drawPolylineOnCanvas function with dots
+  const drawPolylineOnCanvas = (
+    canvas,
+    path,
+    img,
+    color = "#ff0000",
+    isComplete = false
+  ) => {
+    if (!canvas || !path || path.length === 0) return;
+    const ctx = canvas.getContext("2d");
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Scale the path from natural coordinates to display coordinates
+    const scaleX = canvas.width / img.naturalWidth;
+    const scaleY = canvas.height / img.naturalHeight;
+
+    if (path.length === 1) {
+      // Draw single point/dot - SMALLER SIZE
+      ctx.fillStyle = color;
+      const displayX = path[0].x * scaleX;
+      const displayY = path[0].y * scaleY;
+      ctx.beginPath();
+      ctx.arc(displayX, displayY, 3, 0, 2 * Math.PI); // REDUCED from 6 to 3
+      ctx.fill();
+
+      // Add a white border to make it more visible - SMALLER BORDER
+      ctx.strokeStyle = "#ffffff";
+      ctx.lineWidth = 1; //  REDUCED from 2 to 1
+      ctx.stroke();
+      return;
+    }
+
+    // Draw lines between points - THINNER LINE
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1.5; //  REDUCED from 3 to 1.5
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+
+    ctx.beginPath();
+    for (let i = 0; i < path.length; i++) {
+      const point = path[i];
+      const displayX = point.x * scaleX;
+      const displayY = point.y * scaleY;
+
+      if (i === 0) {
+        ctx.moveTo(displayX, displayY);
+      } else {
+        ctx.lineTo(displayX, displayY);
+      }
+    }
+
+    // Close the path if complete
+    if (isComplete && path.length > 2) {
+      ctx.closePath();
+      ctx.fillStyle = color + "20"; // Semi-transparent fill
+      ctx.fill();
+    }
+
+    ctx.stroke();
+
+    // Draw dots at each point - SMALLER DOTS
+    for (let i = 0; i < path.length; i++) {
+      const point = path[i];
+      const displayX = point.x * scaleX;
+      const displayY = point.y * scaleY;
+
+      // Outer white circle for visibility - SMALLER
+      ctx.fillStyle = "#ffffff";
+      ctx.beginPath();
+      ctx.arc(displayX, displayY, 4, 0, 2 * Math.PI); // REDUCED from 8 to 4
+      ctx.fill();
+
+      // Inner colored circle - SMALLER
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.arc(displayX, displayY, 2.5, 0, 2 * Math.PI); //  REDUCED from 6 to 2.5
+      ctx.fill();
+
+      // // Point number (commented out as before)
+      // ctx.fillStyle = "#ffffff";
+      // ctx.font = "12px Arial";
+      // ctx.textAlign = "center";
+      // ctx.textBaseline = "middle";
+      // ctx.fillText((i + 1).toString(), displayX, displayY);
+    }
+  };
+  // Updated startDrawingPolyline function with immediate visual feedback
+  const startDrawingPolyline = (e, canvasRef, imageNum) => {
+    e.stopPropagation();
+    e.preventDefault();
+    if (!uploadedImage1 || !uploadedImage2 || drawingTool !== "polyline")
+      return;
+
+    const canvas = canvasRef.current;
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    // Get natural coordinates
+    const img = imageNum === 1 ? imgRef1.current : imgRef2.current;
+    const scaleX = img.naturalWidth / img.offsetWidth;
+    const scaleY = img.naturalHeight / img.offsetHeight;
+
+    const naturalX = x * scaleX;
+    const naturalY = y * scaleY;
+
+    // Clear other selection types
+    if (imageNum === 1) {
+      setRoi1(null);
+      setFreehandPath1([]);
+      setFreehandMask1(null);
+
+      if (isPolylineComplete1) {
+        // Reset if already complete
+        setPolylinePath1([{ x: naturalX, y: naturalY }]);
+        setIsPolylineComplete1(false);
+        setPolylineMask1(null);
+      } else {
+        // Add point to existing path
+        setPolylinePath1((prev) => {
+          const newPath = [...prev, { x: naturalX, y: naturalY }];
+          // Immediately redraw canvas with new point
+          setTimeout(() => {
+            if (canvasRef.current && img) {
+              drawPolylineOnCanvas(
+                canvasRef.current,
+                newPath,
+                img,
+                "#ff0000",
+                false
+              );
+            }
+          }, 0);
+          return newPath;
+        });
+      }
+    } else {
+      setRoi2(null);
+      setFreehandPath2([]);
+      setFreehandMask2(null);
+
+      if (isPolylineComplete2) {
+        // Reset if already complete
+        setPolylinePath2([{ x: naturalX, y: naturalY }]);
+        setIsPolylineComplete2(false);
+        setPolylineMask2(null);
+      } else {
+        // Add point to existing path
+        setPolylinePath2((prev) => {
+          const newPath = [...prev, { x: naturalX, y: naturalY }];
+          // Immediately redraw canvas with new point
+          setTimeout(() => {
+            if (canvasRef.current && img) {
+              drawPolylineOnCanvas(
+                canvasRef.current,
+                newPath,
+                img,
+                "#ff0000",
+                false
+              );
+            }
+          }, 0);
+          return newPath;
+        });
+      }
+    }
+
+    setCurrentImage(imageNum);
+  };
+
+  // Clear polyline functions
+  const clearPolyline1 = () => {
+    setPolylinePath1([]);
+    setPolylineMask1(null);
+    setIsPolylineComplete1(false);
+    if (canvasRef1.current) {
+      const ctx = canvasRef1.current.getContext("2d");
+      ctx.clearRect(0, 0, canvasRef1.current.width, canvasRef1.current.height);
+    }
+  };
+
+  const clearPolyline2 = () => {
+    setPolylinePath2([]);
+    setPolylineMask2(null);
+    setIsPolylineComplete2(false);
+    if (canvasRef2.current) {
+      const ctx = canvasRef2.current.getContext("2d");
+      ctx.clearRect(0, 0, canvasRef2.current.width, canvasRef2.current.height);
+    }
+  };
+
+  const completePolyline = (imageNum) => {
+    const currentPath = imageNum === 1 ? polylinePath1 : polylinePath2;
+
+    if (currentPath.length < 3) return; // Need at least 3 points
+
+    if (imageNum === 1) {
+      setIsPolylineComplete1(true);
+      // Generate mask
+      const img = imgRef1.current;
+      if (img) {
+        const maskDataURL = generateMaskFromPolyline(currentPath, img);
+        setPolylineMask1(maskDataURL);
+      }
+      // Redraw canvas
+      if (canvasRef1.current && imgRef1.current) {
+        drawPolylineOnCanvas(
+          canvasRef1.current,
+          currentPath,
+          imgRef1.current,
+          "#ff0000",
+          true
+        );
+      }
+    } else {
+      setIsPolylineComplete2(true);
+      // Generate mask
+      const img = imgRef2.current;
+      if (img) {
+        const maskDataURL = generateMaskFromPolyline(currentPath, img);
+        setPolylineMask2(maskDataURL);
+      }
+      // Redraw canvas
+      if (canvasRef2.current && imgRef2.current) {
+        drawPolylineOnCanvas(
+          canvasRef2.current,
+          currentPath,
+          imgRef2.current,
+          "#ff0000",
+          true
+        );
+      }
+    }
+
+    setCurrentImage(null);
+  };
+
+  // Handle double click to complete polyline
+  const handlePolylineDoubleClick = (e, imageNum) => {
+    e.preventDefault();
+    if (drawingTool !== "polyline") return;
+
+    completePolyline(imageNum);
+  };
+
+  // Modal polyline functions
+  const handleModalPolylineClick = (e) => {
+    e.stopPropagation();
+    e.preventDefault();
+    if (drawingTool !== "polyline") return;
+
+    const canvas = modalCanvasRef.current;
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    // Get natural coordinates
+    const img = modalImgRef.current;
+    const imgDimensions =
+      expandedForROI === "image1" ? image1Dimensions : image2Dimensions;
+    const scaleX = imgDimensions.naturalWidth / img.offsetWidth;
+    const scaleY = imgDimensions.naturalHeight / img.offsetHeight;
+
+    const naturalX = x * scaleX;
+    const naturalY = y * scaleY;
+
+    if (modalPolylineComplete) {
+      // Reset if already complete
+      setModalPolylinePath([{ x: naturalX, y: naturalY }]);
+      setModalPolylineComplete(false);
+      // Immediate redraw
+      setTimeout(() => {
+        drawPolylineOnCanvas(
+          canvas,
+          [{ x: naturalX, y: naturalY }],
+          {
+            naturalWidth: imgDimensions.naturalWidth,
+            naturalHeight: imgDimensions.naturalHeight,
+          },
+          "#00ff00",
+          false
+        );
+      }, 0);
+    } else {
+      // Add point to existing path
+      setModalPolylinePath((prev) => {
+        const newPath = [...prev, { x: naturalX, y: naturalY }];
+        // Immediate redraw
+        setTimeout(() => {
+          drawPolylineOnCanvas(
+            canvas,
+            newPath,
+            {
+              naturalWidth: imgDimensions.naturalWidth,
+              naturalHeight: imgDimensions.naturalHeight,
+            },
+            "#00ff00",
+            false
+          );
+        }, 0);
+        return newPath;
+      });
+    }
+  };
+
+  const handleModalPolylineDoubleClick = (e) => {
+    e.preventDefault();
+    if (drawingTool !== "polyline" || modalPolylinePath.length < 3) return;
+
+    setModalPolylineComplete(true);
+
+    // Generate mask for preview
+    const img = modalImgRef.current;
+    const imgDimensions =
+      expandedForROI === "image1" ? image1Dimensions : image2Dimensions;
+
+    if (modalPolylinePath.length > 2) {
+      const tempImg = {
+        naturalWidth: imgDimensions.naturalWidth,
+        naturalHeight: imgDimensions.naturalHeight,
+      };
+      const maskDataURL = generateMaskFromPolyline(modalPolylinePath, tempImg);
+      setGeneratedMask(maskDataURL);
+    }
+
+    // Redraw canvas with completed polyline
+    const canvas = modalCanvasRef.current;
+    drawPolylineOnCanvas(
+      canvas,
+      modalPolylinePath,
+      {
+        naturalWidth: imgDimensions.naturalWidth,
+        naturalHeight: imgDimensions.naturalHeight,
+      },
+      "#00ff00",
+      true
+    );
+  };
+
+  // Generate mask from polyline path
+  const generateMaskFromPolyline = (path, imgElement) => {
+    if (!path || path.length === 0 || !imgElement) return null;
+
+    const canvas = document.createElement("canvas");
+    canvas.width = imgElement.naturalWidth;
+    canvas.height = imgElement.naturalHeight;
+    const ctx = canvas.getContext("2d");
+
+    // Create black background
+    ctx.fillStyle = "rgb(0, 0, 0)";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    if (path.length < 3) return canvas.toDataURL("image/png");
+
+    // Draw white filled polygon
+    ctx.fillStyle = "rgb(255, 255, 255)";
+    ctx.strokeStyle = "rgb(255, 255, 255)";
+    ctx.lineWidth = 2;
+
+    ctx.beginPath();
+    ctx.moveTo(path[0].x, path[0].y);
+    for (let i = 1; i < path.length; i++) {
+      ctx.lineTo(path[i].x, path[i].y);
+    }
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    return canvas.toDataURL("image/png");
+  };
+
   // Add these helper functions to your component
   const generateMaskFromROI = (roi, imgElement) => {
     if (!roi || !imgElement) return null;
@@ -1182,15 +1693,19 @@ const ImageBlending = ({
       return;
     }
 
-    // Check if ROI or freehand is selected for both images
     const hasImage1Selection =
-      roi1 || (freehandPath1.length > 0 && freehandMask1);
+      roi1 ||
+      (freehandPath1.length > 0 && freehandMask1) ||
+      (polylinePath1.length > 2 && isPolylineComplete1 && polylineMask1);
+
     const hasImage2Selection =
-      roi2 || (freehandPath2.length > 0 && freehandMask2);
+      roi2 ||
+      (freehandPath2.length > 0 && freehandMask2) ||
+      (polylinePath2.length > 2 && isPolylineComplete2 && polylineMask2);
 
     if (!hasImage1Selection || !hasImage2Selection) {
       setErrorMessage(
-        "Please select regions on both images (rectangle or freehand)"
+        "Please select regions on both images (rectangle, freehand, or polyline)"
       );
       setShowAlert(true);
       return;
@@ -1283,6 +1798,26 @@ const ImageBlending = ({
             displayHeight: img1.offsetHeight,
           })
         );
+      } else if (
+        polylinePath1.length > 2 &&
+        isPolylineComplete1 &&
+        polylineMask1
+      ) {
+        // NEW: Polyline mode for Image 1
+        formData.append("image1_selection_type", "polyline");
+
+        const maskBlob1 = await dataURLToBlob(polylineMask1);
+        formData.append("image1_mask", maskBlob1, "image1_mask.png");
+
+        formData.append(
+          "image1_dimensions",
+          JSON.stringify({
+            naturalWidth: img1.naturalWidth,
+            naturalHeight: img1.naturalHeight,
+            displayWidth: img1.offsetWidth,
+            displayHeight: img1.offsetHeight,
+          })
+        );
       }
 
       // Handle Image 2 selection data
@@ -1311,6 +1846,26 @@ const ImageBlending = ({
         formData.append("image2_mask", maskBlob2, "image2_mask.png");
 
         // Send image dimensions for reference
+        formData.append(
+          "image2_dimensions",
+          JSON.stringify({
+            naturalWidth: img2.naturalWidth,
+            naturalHeight: img2.naturalHeight,
+            displayWidth: img2.offsetWidth,
+            displayHeight: img2.offsetHeight,
+          })
+        );
+      } else if (
+        polylinePath2.length > 2 &&
+        isPolylineComplete2 &&
+        polylineMask2
+      ) {
+        // NEW: Polyline mode for Image 2
+        formData.append("image2_selection_type", "polyline");
+
+        const maskBlob2 = await dataURLToBlob(polylineMask2);
+        formData.append("image2_mask", maskBlob2, "image2_mask.png");
+
         formData.append(
           "image2_dimensions",
           JSON.stringify({
@@ -1473,6 +2028,26 @@ const ImageBlending = ({
             <FaPencilAlt className="mr-1" size={14} />
             FreeHand
           </button>
+          <button
+            className={`flex items-center px-3 py-1 rounded-md transition-all
+      ${
+        drawingTool === "polyline"
+          ? "bg-indigo-600 text-white shadow-md hover:bg-indigo-700 border border-indigo-300 dark:border-indigo-500"
+          : "bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 border border-transparent"
+      }`}
+            onClick={() => setDrawingTool("polyline")}
+          >
+            <svg
+              className="mr-1"
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="currentColor"
+            >
+              <path d="M2 12L4 10L8 14L12 10L16 14L20 10L22 12L20 14L16 10L12 14L8 10L4 14L2 12Z" />
+            </svg>
+            Polyline
+          </button>
           <label className="flex items-center space-x-2 cursor-pointer group">
             <div
               className={`relative rounded-md p-1 transition-all ${
@@ -1530,6 +2105,8 @@ const ImageBlending = ({
                         startDrawingRect(e, canvasRef1, setRoi1, 1);
                       } else if (drawingTool === "pencil") {
                         startDrawingFreehand(e, canvasRef1, 1);
+                      } else if (drawingTool === "polyline") {
+                        startDrawingPolyline(e, canvasRef1, 1);
                       }
                     }}
                     onMouseMove={(e) => {
@@ -1553,6 +2130,7 @@ const ImageBlending = ({
                         finishDrawingFreehand(e, canvasRef1, 1);
                       }
                     }}
+                    onDoubleClick={(e) => handlePolylineDoubleClick(e, 1)}
                   />
                   <div className="absolute top-0 right-2 p-1">
                     <button
@@ -1594,6 +2172,29 @@ const ImageBlending = ({
               />
             </label>
           </div>
+          {drawingTool === "polyline" && polylinePath1.length > 0 && (
+            <div className="mt-2 flex justify-center">
+              <button
+                onClick={clearPolyline1}
+                className="px-3 py-1 bg-red-500 hover:bg-red-600 text-white text-sm rounded-md transition-colors"
+              >
+                Clear Polyline
+              </button>
+            </div>
+          )}
+          {drawingTool === "polyline" && (
+            <div className="mt-2 text-center">
+              {/* Image 1 Status */}
+              {polylinePath1.length > 0 && (
+                <div className="text-sm text-gray-600 dark:text-gray-400">
+                  Raw Image: {polylinePath1.length} points{" "}
+                  {isPolylineComplete1
+                    ? "(Complete)"
+                    : "(Click more points, double-click to finish)"}
+                </div>
+              )}
+            </div>
+          )}
           {isColorImage1 && (
             <div className="my-4 p-4 rounded-xl bg-gradient-to-br from-indigo-50 to-blue-50 dark:from-neutral-900/30 dark:to-neutral-900/30 border border-indigo-100 dark:border-indigo-800/50 shadow-sm transition-all duration-300 hover:shadow-md">
               <div className="flex items-start gap-3">
@@ -1698,6 +2299,8 @@ const ImageBlending = ({
                         startDrawingRect(e, canvasRef2, setRoi2, 2);
                       } else if (drawingTool === "pencil") {
                         startDrawingFreehand(e, canvasRef2, 2);
+                      } else if (drawingTool === "polyline") {
+                        startDrawingPolyline(e, canvasRef2, 2);
                       }
                     }}
                     onMouseMove={(e) => {
@@ -1721,6 +2324,7 @@ const ImageBlending = ({
                         finishDrawingFreehand(e, canvasRef2, 2);
                       }
                     }}
+                    onDoubleClick={(e) => handlePolylineDoubleClick(e, 2)}
                   />
                   <div className="absolute top-0 right-2 p-1">
                     <button
@@ -1762,6 +2366,29 @@ const ImageBlending = ({
               />
             </label>
           </div>
+          {drawingTool === "polyline" && polylinePath2.length > 0 && (
+            <div className="mt-2 flex justify-center">
+              <button
+                onClick={clearPolyline2}
+                className="px-3 py-1 bg-red-500 hover:bg-red-600 text-white text-sm rounded-md transition-colors"
+              >
+                Clear Polyline
+              </button>
+            </div>
+          )}
+          {drawingTool === "polyline" && (
+            <div className="mt-2 text-center">
+              {/* Image 2 Status */}
+              {polylinePath2.length > 0 && (
+                <div className="text-sm text-gray-600 dark:text-gray-400">
+                  Photo Image: {polylinePath2.length} points{" "}
+                  {isPolylineComplete2
+                    ? "(Complete)"
+                    : "(Click more points, double-click to finish)"}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* PDF page selector */}
           {isPdf && totalPages > 0 && (
@@ -1878,8 +2505,16 @@ const ImageBlending = ({
         disabled={
           !uploadedImage1 ||
           !uploadedImage2 ||
-          !(roi1 || (freehandPath1.length > 0 && freehandMask1)) ||
-          !(roi2 || (freehandPath2.length > 0 && freehandMask2)) ||
+          !(
+            roi1 ||
+            (freehandPath1.length > 0 && freehandMask1) ||
+            (polylinePath1.length > 2 && isPolylineComplete1 && polylineMask1)
+          ) ||
+          !(
+            roi2 ||
+            (freehandPath2.length > 0 && freehandMask2) ||
+            (polylinePath2.length > 2 && isPolylineComplete2 && polylineMask2)
+          ) ||
           isBlending ||
           (isColorImage2 && !selectedChannel) ||
           (isColorImage1 && !selectedChannel1)
@@ -2133,7 +2768,27 @@ const ImageBlending = ({
               Draw ROI on{" "}
               {expandedForROI === "image1" ? "Raw Image" : "Photo Image"}
             </h2>
-
+            {/* Add clear button for modal polyline */}
+            {drawingTool === "polyline" && modalPolylinePath.length > 0 && (
+              <button
+                onClick={() => {
+                  setModalPolylinePath([]);
+                  setModalPolylineComplete(false);
+                  if (modalCanvasRef.current) {
+                    const ctx = modalCanvasRef.current.getContext("2d");
+                    ctx.clearRect(
+                      0,
+                      0,
+                      modalCanvasRef.current.width,
+                      modalCanvasRef.current.height
+                    );
+                  }
+                }}
+                className="absolute left-6 h-8 px-3 flex items-center justify-center text-red-400 hover:text-red-300 text-sm font-medium rounded cursor-pointer transition-colors"
+              >
+                Clear
+              </button>
+            )}
             <button
               onClick={saveModalROI}
               className="absolute right-6 h-8 w-8 flex items-center justify-center text-gray-300  hover:text-white  font-extrabold rounded-full cursor-pointer hover:rotate-45 transition-transform duration-200"
@@ -2166,10 +2821,35 @@ const ImageBlending = ({
             <canvas
               ref={modalCanvasRef}
               className="absolute top-0 left-0 w-full h-full cursor-crosshair"
-              onMouseDown={handleModalMouseDown}
-              onMouseMove={handleModalMouseMove}
-              onMouseUp={handleModalMouseUp}
-              onMouseLeave={handleModalMouseUp}
+              onMouseDown={(e) => {
+                if (drawingTool === "rectangle") {
+                  handleModalMouseDown(e);
+                } else if (drawingTool === "pencil") {
+                  handleModalMouseDown(e);
+                } else if (drawingTool === "polyline") {
+                  handleModalPolylineClick(e);
+                }
+              }}
+              onMouseMove={(e) => {
+                if (drawingTool === "rectangle" || drawingTool === "pencil") {
+                  handleModalMouseMove(e);
+                }
+              }}
+              onMouseUp={(e) => {
+                if (drawingTool === "rectangle" || drawingTool === "pencil") {
+                  handleModalMouseUp(e);
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (drawingTool === "rectangle" || drawingTool === "pencil") {
+                  handleModalMouseUp(e);
+                }
+              }}
+              onDoubleClick={(e) => {
+                if (drawingTool === "polyline") {
+                  handleModalPolylineDoubleClick(e);
+                }
+              }}
             />
           </div>
         </div>
