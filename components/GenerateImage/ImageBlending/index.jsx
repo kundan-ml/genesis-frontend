@@ -107,11 +107,6 @@ const ImageBlending = ({
   const [isPolylineComplete2, setIsPolylineComplete2] = useState(false);
   const [modalPolylineComplete, setModalPolylineComplete] = useState(false);
 
-  // Add these zoom/pan state variables with your existing state
-  const [scale, setScale] = useState(1);
-  const [position, setPosition] = useState({ x: 0, y: 0 });
-  const [isDragging, setIsDragging] = useState(false);
-
   const canvasRef1 = useRef(null);
   const canvasRef2 = useRef(null);
   const imgRef1 = useRef(null);
@@ -2002,73 +1997,6 @@ const ImageBlending = ({
     setExpandedImage(null);
   };
 
-  // Add these zoom handler functions
-  const handleWheel = (event, imageContainer) => {
-    // Only prevent default if the mouse is actually over the image
-    const rect = imageContainer.getBoundingClientRect();
-    const isOverImage =
-      event.clientX >= rect.left &&
-      event.clientX <= rect.right &&
-      event.clientY >= rect.top &&
-      event.clientY <= rect.bottom;
-
-    if (!isOverImage) return; // Let normal page scroll happen
-
-    event.preventDefault();
-    event.stopPropagation();
-
-    const scaleChange = event.deltaY > 0 ? 0.9 : 1.1;
-    const newScale = Math.max(0.1, Math.min(5, scale * scaleChange));
-
-    setScale(newScale);
-  };
-
-  const handleMouseDown = (event) => {
-    console.log("handleMouseDown triggered!", event.button);
-    if (event.button === 0) {
-      // Left mouse button
-      setIsDragging(true);
-      event.preventDefault();
-      event.stopPropagation(); // Add this
-    }
-  };
-
-  const handleMouseMove = (event) => {
-    if (isDragging) {
-      console.log("handleMouseMove - dragging", {
-        movementX: event.movementX,
-        movementY: event.movementY,
-      });
-      setPosition((prev) => ({
-        x: prev.x + event.movementX,
-        y: prev.y + event.movementY,
-      }));
-    }
-  };
-
-  const handleMouseUp = () => {
-    console.log("handleMouseUp triggered!");
-    setIsDragging(false);
-  };
-
-  const handleDoubleClick = () => {
-    console.log("handleDoubleClick triggered! Resetting zoom");
-    setScale(1);
-    setPosition({ x: 0, y: 0 });
-  };
-  // Add useEffect for mouse events
-  useEffect(() => {
-    if (isDragging) {
-      window.addEventListener("mousemove", handleMouseMove);
-      window.addEventListener("mouseup", handleMouseUp);
-    }
-
-    return () => {
-      window.removeEventListener("mousemove", handleMouseMove);
-      window.removeEventListener("mouseup", handleMouseUp);
-    };
-  }, [isDragging]);
-
   return (
     <div className="p-4 ml-28 dark:bg-[#1a1a1a] bg-white rounded-lg shadow-lg">
       <div className="flex justify-between items-center mb-4">
@@ -2202,6 +2130,7 @@ const ImageBlending = ({
                         finishDrawingFreehand(e, canvasRef1, 1);
                       }
                     }}
+                    onDoubleClick={(e) => handlePolylineDoubleClick(e, 1)}
                   />
                   <div className="absolute top-0 right-2 p-1">
                     <button
@@ -2244,21 +2173,13 @@ const ImageBlending = ({
             </label>
           </div>
           {drawingTool === "polyline" && polylinePath1.length > 0 && (
-            <div className="mt-2 flex justify-center space-x-2">
+            <div className="mt-2 flex justify-center">
               <button
                 onClick={clearPolyline1}
                 className="px-3 py-1 bg-red-500 hover:bg-red-600 text-white text-sm rounded-md transition-colors"
               >
                 Clear Polyline
               </button>
-              {polylinePath1.length > 2 && !isPolylineComplete1 && (
-                <button
-                  onClick={() => completePolyline(1)}
-                  className="px-3 py-1 bg-green-500 hover:bg-green-600 text-white text-sm rounded-md transition-colors"
-                >
-                  Complete Polyline
-                </button>
-              )}
             </div>
           )}
           {drawingTool === "polyline" && (
@@ -2269,7 +2190,7 @@ const ImageBlending = ({
                   Raw Image: {polylinePath1.length} points{" "}
                   {isPolylineComplete1
                     ? "(Complete)"
-                    : "(Click more points, use Complete button to finish)"}
+                    : "(Click more points, double-click to finish)"}
                 </div>
               )}
             </div>
@@ -2403,6 +2324,7 @@ const ImageBlending = ({
                         finishDrawingFreehand(e, canvasRef2, 2);
                       }
                     }}
+                    onDoubleClick={(e) => handlePolylineDoubleClick(e, 2)}
                   />
                   <div className="absolute top-0 right-2 p-1">
                     <button
@@ -2445,21 +2367,13 @@ const ImageBlending = ({
             </label>
           </div>
           {drawingTool === "polyline" && polylinePath2.length > 0 && (
-            <div className="mt-2 flex justify-center space-x-2">
+            <div className="mt-2 flex justify-center">
               <button
                 onClick={clearPolyline2}
                 className="px-3 py-1 bg-red-500 hover:bg-red-600 text-white text-sm rounded-md transition-colors"
               >
                 Clear Polyline
               </button>
-              {polylinePath2.length > 2 && !isPolylineComplete2 && (
-                <button
-                  onClick={() => completePolyline(2)}
-                  className="px-3 py-1 bg-green-500 hover:bg-green-600 text-white text-sm rounded-md transition-colors"
-                >
-                  Complete Polyline
-                </button>
-              )}
             </div>
           )}
           {drawingTool === "polyline" && (
@@ -2470,11 +2384,12 @@ const ImageBlending = ({
                   Photo Image: {polylinePath2.length} points{" "}
                   {isPolylineComplete2
                     ? "(Complete)"
-                    : "(Click more points, use Complete button to finish)"}
+                    : "(Click more points, double-click to finish)"}
                 </div>
               )}
             </div>
           )}
+
           {/* PDF page selector */}
           {isPdf && totalPages > 0 && (
             <div className="mt-3 flex items-center justify-center">
@@ -2642,34 +2557,10 @@ const ImageBlending = ({
         // {blendedResult && type === "single" && (
         <section>
           <div className=" flex flex-wrap ">
-            <div className="m-4">
+            <div className="m-4  ">
               <h3 className="text-lg font-semibold dark:text-white">
                 Rendered Image (Single Spot)
               </h3>
-              {/* <div
-                className="relative overflow-hidden rounded-md border dark:border-gray-600 inline-block"
-                style={{ cursor: isDragging ? "grabbing" : "grab" }}
-              >
-                <img
-                  src={`${BACKEND_URL}/${blendedResult}`}
-                  alt="Blended result"
-                  className="max-h-96 w-auto object-contain cursor-move"
-                  style={{
-                    transform: `translate(${position.x}px, ${position.y}px) scale(${scale})`,
-                    transformOrigin: "center center",
-                  }}
-                  onWheel={(e) => handleWheel(e, e.currentTarget.parentElement)}
-                  onMouseDown={handleMouseDown}
-                  onDoubleClick={handleDoubleClick}
-                  draggable={false}
-                />
-                <button
-                  onClick={() => expandImage(`${BACKEND_URL}/${blendedResult}`)}
-                  className="absolute top-2 right-2 bg-black bg-opacity-50 text-white p-1 rounded-full hover:bg-opacity-70"
-                >
-                  <AiOutlineExpand size={20} />
-                </button>
-              </div> */}
               <div className="relative">
                 <img
                   src={`${BACKEND_URL}/${blendedResult}`}
@@ -2877,50 +2768,6 @@ const ImageBlending = ({
               Draw ROI on{" "}
               {expandedForROI === "image1" ? "Raw Image" : "Photo Image"}
             </h2>
-            {/* Add complete button for modal polyline */}
-            {drawingTool === "polyline" &&
-              modalPolylinePath.length > 2 &&
-              !modalPolylineComplete && (
-                <button
-                  onClick={() => {
-                    setModalPolylineComplete(true);
-                    // Generate mask for preview
-                    const img = modalImgRef.current;
-                    const imgDimensions =
-                      expandedForROI === "image1"
-                        ? image1Dimensions
-                        : image2Dimensions;
-
-                    if (modalPolylinePath.length > 2) {
-                      const tempImg = {
-                        naturalWidth: imgDimensions.naturalWidth,
-                        naturalHeight: imgDimensions.naturalHeight,
-                      };
-                      const maskDataURL = generateMaskFromPolyline(
-                        modalPolylinePath,
-                        tempImg
-                      );
-                      setGeneratedMask(maskDataURL);
-                    }
-
-                    // Redraw canvas with completed polyline
-                    const canvas = modalCanvasRef.current;
-                    drawPolylineOnCanvas(
-                      canvas,
-                      modalPolylinePath,
-                      {
-                        naturalWidth: imgDimensions.naturalWidth,
-                        naturalHeight: imgDimensions.naturalHeight,
-                      },
-                      "#00ff00",
-                      true
-                    );
-                  }}
-                  className="absolute left-20 h-8 px-3 flex items-center justify-center bg-green-500 hover:bg-green-600 text-white text-sm font-medium rounded cursor-pointer transition-colors"
-                >
-                  Complete
-                </button>
-              )}
             {/* Add clear button for modal polyline */}
             {drawingTool === "polyline" && modalPolylinePath.length > 0 && (
               <button
@@ -2996,6 +2843,11 @@ const ImageBlending = ({
               onMouseLeave={(e) => {
                 if (drawingTool === "rectangle" || drawingTool === "pencil") {
                   handleModalMouseUp(e);
+                }
+              }}
+              onDoubleClick={(e) => {
+                if (drawingTool === "polyline") {
+                  handleModalPolylineDoubleClick(e);
                 }
               }}
             />

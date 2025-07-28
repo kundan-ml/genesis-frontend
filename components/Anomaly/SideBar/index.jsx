@@ -779,16 +779,12 @@ const SideBar = ({
                 <button
                   type="button"
                   onClick={handleDetect}
-                  disabled={step === 3 || uploadedImage.length === 0}
+                  disabled={step === 3}
                   className={`w-full border-neutral-500 bg-gradient-to-r from-[#4F46E5] to-[rgb(225,20,229)] text-white p-2 text-sm font-semibold rounded-md flex justify-center shadow-lg border items-center transition duration-200
-    ${
-      step === 3 || uploadedImage.length === 0
-        ? "opacity-50 cursor-not-allowed"
-        : "hover:bg-blue-600"
-    }
+    ${step === 3 ? "opacity-50 cursor-not-allowed" : "hover:bg-blue-600"}
   `}
                 >
-                  <span>{step === 3 ? "Processing..." : "Detect Anomaly"}</span>
+                  <span>Detect Anomaly</span>
                   <span className="absolute right-4 bg-[rgb(141,39,143)] text-white ml-2 px-2 py-1 text-xs rounded-md font-light">
                     {Credit}
                   </span>
