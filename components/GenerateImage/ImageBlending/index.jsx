@@ -2558,6 +2558,54 @@ const ImageBlending = ({
     return null;
   };
 
+  const downloadColorImageAs24Bit = async () => {
+    if (!colorBlendedResult) return;
+
+    try {
+      // Create a new canvas to convert the image to 24-bit
+      const canvas = document.createElement("canvas");
+      const ctx = canvas.getContext("2d");
+
+      // Create an image from the color result
+      const img = new Image();
+      img.onload = () => {
+        // Set canvas dimensions to match image
+        canvas.width = img.width;
+        canvas.height = img.height;
+
+        // Draw the image onto canvas
+        ctx.drawImage(img, 0, 0);
+
+        // Convert to BMP (24-bit) using your existing canvasToBMP function
+        const bmpData = canvasToBMP(canvas);
+        const blob = new Blob([bmpData], { type: "image/bmp" });
+
+        // Create download link
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = "color_output.bmp";
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+      };
+
+      img.onerror = () => {
+        console.error("Failed to load color image for download");
+        setErrorMessage("Failed to download color image");
+        setShowAlert(true);
+      };
+
+      // Load the color result image
+      img.src = colorBlendedResult;
+    } catch (error) {
+      console.error("Error downloading color image:", error);
+      setErrorMessage("Failed to download color image");
+      setShowAlert(true);
+    }
+  };
+
   return (
     <div className="p-4 ml-28 dark:bg-[#1a1a1a] bg-white rounded-lg shadow-lg">
       <div className="flex justify-between items-center mb-4">
@@ -3281,14 +3329,7 @@ const ImageBlending = ({
                 {/* Download button for color result */}
                 <div className="mt-2 flex justify-center">
                   <button
-                    onClick={() => {
-                      const link = document.createElement("a");
-                      link.href = colorBlendedResult;
-                      link.download = "color_output.bmp";
-                      document.body.appendChild(link);
-                      link.click();
-                      document.body.removeChild(link);
-                    }}
+                    onClick={downloadColorImageAs24Bit}
                     className="flex items-center bg-green-500 hover:bg-green-600 text-white py-2 px-4 rounded-md"
                   >
                     <svg
