@@ -71,32 +71,26 @@ const ImageBlending = ({
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [allImages, setAllImages] = useState([]);
   const [image2_gray, setImage2_gray] = useState("");
-
   // NEW STATE VARIABLES FOR IMAGE 1 COLOR HANDLING
   const [isColorImage1, setIsColorImage1] = useState(false);
   const [selectedChannel1, setSelectedChannel1] = useState("rgb");
   const [originalImage1DataURL, setOriginalImage1DataURL] = useState("");
   const [processedImage1File, setProcessedImage1File] = useState(null);
   const [image1_gray, setImage1_gray] = useState("");
-
   // NEW STATE FOR COLOR OUTPUT OPTION
   const [outputColor, setOutputColor] = useState(false);
   const [colorBlendedResult, setColorBlendedResult] = useState(null);
-
   // Add these to your existing state variables
   const [generatedMask, setGeneratedMask] = useState(null);
   const [roiPreview, setRoiPreview] = useState(null);
-
   const [drawingTool, setDrawingTool] = useState("rectangle");
   const [useSAM, setUseSAM] = useState(false);
-
   // NEW STATE VARIABLES FOR FREEHAND DRAWING
   const [freehandPath1, setFreehandPath1] = useState([]);
   const [freehandPath2, setFreehandPath2] = useState([]);
   const [modalFreehandPath, setModalFreehandPath] = useState([]);
   const [freehandMask1, setFreehandMask1] = useState(null);
   const [freehandMask2, setFreehandMask2] = useState(null);
-
   // Add these new state variables to your existing state section
   const [polylinePath1, setPolylinePath1] = useState([]);
   const [polylinePath2, setPolylinePath2] = useState([]);
@@ -106,32 +100,32 @@ const ImageBlending = ({
   const [isPolylineComplete1, setIsPolylineComplete1] = useState(false);
   const [isPolylineComplete2, setIsPolylineComplete2] = useState(false);
   const [modalPolylineComplete, setModalPolylineComplete] = useState(false);
-
   // Add these zoom/pan state variables with your existing state
   const [scale, setScale] = useState(1);
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
-
   // Add these new state variables with your existing state (around line 50):
   const [modalScale, setModalScale] = useState(1);
   const [modalPosition, setModalPosition] = useState({ x: 0, y: 0 });
   const [isModalDragging, setIsModalDragging] = useState(false);
   const [modalDragStart, setModalDragStart] = useState({ x: 0, y: 0 });
-
   // Add these new state variables with your existing state (around line 50):
   const [isDraggingRect, setIsDraggingRect] = useState(false);
   const [isResizingRect, setIsResizingRect] = useState(false);
   const [dragMode, setDragMode] = useState(null); // 'move', 'resize-se', 'resize-nw', etc.
   const [dragStartPos, setDragStartPos] = useState({ x: 0, y: 0 });
   const [originalRect, setOriginalRect] = useState(null);
-
   // Add these new state variables (add to your existing state section around line 50)
   const [modalIsDraggingRect, setModalIsDraggingRect] = useState(false);
   const [modalIsResizingRect, setModalIsResizingRect] = useState(false);
   const [modalDragMode, setModalDragMode] = useState(null);
   const [modalDragStartPos, setModalDragStartPos] = useState({ x: 0, y: 0 });
   const [modalOriginalRect, setModalOriginalRect] = useState(null);
-
+  // Add these state variables with your existing state
+  const [isGeneratingOverlay, setIsGeneratingOverlay] = useState(false);
+  const [overlayResult, setOverlayResult] = useState(null);
+  const [showOverlayApproval, setShowOverlayApproval] = useState(false);
+  const [showOverlayOnImage2, setShowOverlayOnImage2] = useState(false);
   const canvasRef1 = useRef(null);
   const canvasRef2 = useRef(null);
   const imgRef1 = useRef(null);
@@ -139,7 +133,6 @@ const ImageBlending = ({
   const modalCanvasRef = useRef(null);
   const modalImgRef = useRef(null);
   const BACKEND_URL = process.env.BACKEND_URL;
-
   // NEW STATE FOR COLOR OUTPUT
   const [isGeneratingColor, setIsGeneratingColor] = useState(false);
   // Handle image upload
@@ -152,7 +145,6 @@ const ImageBlending = ({
       setImage2File(file);
       return;
     }
-
     const reader = new FileReader();
     reader.onload = async (event) => {
       const dataURL = event.target.result;
@@ -193,8 +185,60 @@ const ImageBlending = ({
     } else {
       setImage1File(file);
     }
-
     e.target.value = null;
+  };
+
+  // Add these functions to handle tool switching and clearing
+  const clearAllSelections = () => {
+    // Clear Image 1 selections
+    setRoi1(null);
+    setFreehandPath1([]);
+    setFreehandMask1(null);
+    setPolylinePath1([]);
+    setPolylineMask1(null);
+    setIsPolylineComplete1(false);
+
+    // Clear Image 2 selections
+    setRoi2(null);
+    setFreehandPath2([]);
+    setFreehandMask2(null);
+    setPolylinePath2([]);
+    setPolylineMask2(null);
+    setIsPolylineComplete2(false);
+
+    // Clear modal selections
+    setModalRoi(null);
+    setModalFreehandPath([]);
+    setModalPolylinePath([]);
+    setModalPolylineComplete(false);
+    setGeneratedMask(null);
+
+    // Clear canvases
+    if (canvasRef1.current) {
+      const ctx = canvasRef1.current.getContext("2d");
+      ctx.clearRect(0, 0, canvasRef1.current.width, canvasRef1.current.height);
+    }
+    if (canvasRef2.current) {
+      const ctx = canvasRef2.current.getContext("2d");
+      ctx.clearRect(0, 0, canvasRef2.current.width, canvasRef2.current.height);
+    }
+    if (modalCanvasRef.current) {
+      const ctx = modalCanvasRef.current.getContext("2d");
+      ctx.clearRect(
+        0,
+        0,
+        modalCanvasRef.current.width,
+        modalCanvasRef.current.height
+      );
+    }
+  };
+
+  // Update tool selection functions to clear previous selections
+  const handleToolChange = (newTool) => {
+    if (drawingTool !== newTool) {
+      clearAllSelections();
+      setDrawingTool(newTool);
+    }
   };
 
   useEffect(() => {
@@ -1558,7 +1602,6 @@ const ImageBlending = ({
     setIsDrawing(false);
     setCurrentImage(null);
   };
-
   // Updated drawPolylineOnCanvas function with dots
   const drawPolylineOnCanvas = (
     canvas,
@@ -1796,7 +1839,7 @@ const ImageBlending = ({
     setCurrentImage(null);
   };
 
-  // Handle double click to complete polyline
+  // Modal polyline functions
   const handlePolylineDoubleClick = (e, imageNum) => {
     e.preventDefault();
     if (drawingTool !== "polyline") return;
@@ -1863,7 +1906,7 @@ const ImageBlending = ({
       });
     }
   };
-
+  // Generate mask from polyline path
   const handleModalPolylineDoubleClick = (e) => {
     e.preventDefault();
     if (drawingTool !== "polyline" || modalPolylinePath.length < 3) return;
@@ -2289,6 +2332,127 @@ const ImageBlending = ({
     }
   };
 
+  // Function to generate SAM overlay
+  const handleGenerateOverlay = async () => {
+    if (!uploadedImage2) {
+      setErrorMessage("Please upload Image 2 first");
+      setShowAlert(true);
+      return;
+    }
+    const hasImage2Selection =
+      roi2 ||
+      (freehandPath2.length > 0 && freehandMask2) ||
+      (polylinePath2.length > 2 && isPolylineComplete2 && polylineMask2);
+
+    if (!hasImage2Selection) {
+      setErrorMessage("Please select a region on Image 2 first");
+      setShowAlert(true);
+      return;
+    }
+
+    setIsGeneratingOverlay(true);
+
+    try {
+      const img2 = imgRef2.current;
+      const uniqueCode = Math.floor(
+        100000000000 + Math.random() * 900000000000
+      ).toString();
+      const formData = new FormData();
+      // Basic form data for overlay generation
+      formData.append("image2", processedImage2File || image2File);
+      formData.append("type", "overlay_generation");
+      formData.append("use_sam", true);
+      formData.append("unique_code", uniqueCode);
+      // Image dimensions
+      formData.append(
+        "display_dimensions2",
+        JSON.stringify({
+          width: img2.offsetWidth,
+          height: img2.offsetHeight,
+        })
+      );
+      // Color information for Image 2
+      formData.append("is_color_image2", isColorImage2);
+      formData.append("selected_channel2", selectedChannel);
+
+      // Handle Image 2 selection data only
+      if (roi2) {
+        formData.append("image2_selection_type", "rectangle");
+        formData.append(
+          "image2_coordinates",
+          JSON.stringify({
+            x1: roi2.x,
+            y1: roi2.y,
+            x2: roi2.x + roi2.width,
+            y2: roi2.y + roi2.height,
+            naturalWidth: img2.naturalWidth,
+            naturalHeight: img2.naturalHeight,
+            displayWidth: img2.offsetWidth,
+            displayHeight: img2.offsetHeight,
+          })
+        );
+      } else if (freehandPath2.length > 0 && freehandMask2) {
+        formData.append("image2_selection_type", "freehand");
+        const maskBlob2 = await dataURLToBlob(freehandMask2);
+        formData.append("image2_mask", maskBlob2, "image2_mask.png");
+        formData.append(
+          "image2_dimensions",
+          JSON.stringify({
+            naturalWidth: img2.naturalWidth,
+            naturalHeight: img2.naturalHeight,
+            displayWidth: img2.offsetWidth,
+            displayHeight: img2.offsetHeight,
+          })
+        );
+      } else if (
+        polylinePath2.length > 2 &&
+        isPolylineComplete2 &&
+        polylineMask2
+      ) {
+        formData.append("image2_selection_type", "polyline");
+        const maskBlob2 = await dataURLToBlob(polylineMask2);
+        formData.append("image2_mask", maskBlob2, "image2_mask.png");
+        formData.append(
+          "image2_dimensions",
+          JSON.stringify({
+            naturalWidth: img2.naturalWidth,
+            naturalHeight: img2.naturalHeight,
+            displayWidth: img2.offsetWidth,
+            displayHeight: img2.offsetHeight,
+          })
+        );
+      }
+
+      const token = localStorage.getItem("authToken");
+      const response = await axios.post(
+        `${BACKEND_URL}/api/blend-images/`,
+        formData,
+        {
+          headers: {
+            "Content-Type": "multipart/form-data",
+            Authorization: `Token ${token}`,
+          },
+        }
+      );
+
+      if (response.data.success && response.data.overlay_image) {
+        setOverlayResult(response.data.overlay_image);
+        setShowOverlayApproval(true);
+        setShowOverlayOnImage2(true); // Auto switch to overlay view
+      } else {
+        throw new Error(response.data.message || "Failed to generate overlay");
+      }
+    } catch (error) {
+      console.error("Error generating overlay:", error);
+      setErrorMessage(
+        error.message || "Failed to generate overlay. Please try again."
+      );
+      setShowAlert(true);
+    } finally {
+      setIsGeneratingOverlay(false);
+    }
+  };
+
   // Helper function to convert data URL to blob
   const dataURLToBlob = (dataURL) => {
     return new Promise((resolve) => {
@@ -2312,12 +2476,10 @@ const ImageBlending = ({
 
   const expandImage = (imageSrc) => {
     const images = [`${BACKEND_URL}/${blendedResult}`];
-
     // NEW: Include color result
     if (colorBlendedResult) {
       images.push(`${BACKEND_URL}/${colorBlendedResult}`);
     }
-
     if (type === "multiple") {
       images.push(
         `${BACKEND_URL}/${phase_contrast}`,
@@ -2415,7 +2577,6 @@ const ImageBlending = ({
       document.body.style.cursor = "grabbing";
     }
   };
-
   // Smooth mouse movement
   const handleModalImageMouseMove = (e) => {
     if (isModalDragging) {
@@ -2615,36 +2776,36 @@ const ImageBlending = ({
         <div className="flex items-center space-x-4">
           <button
             className={`flex items-center px-3 py-1 rounded-md transition-all
-              ${
-                drawingTool === "rectangle"
-                  ? "bg-indigo-600 text-white shadow-md hover:bg-indigo-700 border border-indigo-300 dark:border-indigo-500"
-                  : "bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 border border-transparent"
-              }`}
-            onClick={() => setDrawingTool("rectangle")}
+    ${
+      drawingTool === "rectangle"
+        ? "bg-indigo-600 text-white shadow-md hover:bg-indigo-700 border border-indigo-300 dark:border-indigo-500"
+        : "bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 border border-transparent"
+    }`}
+            onClick={() => handleToolChange("rectangle")}
           >
             <MdOutlineRectangle className="mr-1" size={18} />
             Rectangle
           </button>
           <button
             className={`flex items-center px-3 py-1 rounded-md transition-all
-              ${
-                drawingTool === "pencil"
-                  ? "bg-indigo-600 text-white shadow-md hover:bg-indigo-700 border border-indigo-300 dark:border-indigo-500"
-                  : "bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 border border-transparent"
-              }`}
-            onClick={() => setDrawingTool("pencil")}
+    ${
+      drawingTool === "pencil"
+        ? "bg-indigo-600 text-white shadow-md hover:bg-indigo-700 border border-indigo-300 dark:border-indigo-500"
+        : "bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 border border-transparent"
+    }`}
+            onClick={() => handleToolChange("pencil")}
           >
             <FaPencilAlt className="mr-1" size={14} />
             FreeHand
           </button>
           <button
             className={`flex items-center px-3 py-1 rounded-md transition-all
-      ${
-        drawingTool === "polyline"
-          ? "bg-indigo-600 text-white shadow-md hover:bg-indigo-700 border border-indigo-300 dark:border-indigo-500"
-          : "bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 border border-transparent"
-      }`}
-            onClick={() => setDrawingTool("polyline")}
+    ${
+      drawingTool === "polyline"
+        ? "bg-indigo-600 text-white shadow-md hover:bg-indigo-700 border border-indigo-300 dark:border-indigo-500"
+        : "bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 border border-transparent"
+    }`}
+            onClick={() => handleToolChange("polyline")}
           >
             <svg
               className="mr-1"
@@ -2903,7 +3064,11 @@ const ImageBlending = ({
                 <div className="relative">
                   <img
                     ref={imgRef2}
-                    src={isDefault || uploadedImage2}
+                    src={
+                      showOverlayOnImage2 && overlayResult
+                        ? `${BACKEND_URL}/${overlayResult}`
+                        : isDefault || uploadedImage2
+                    }
                     alt="Uploaded 2"
                     className="max-h-96 w-auto object-contain rounded-md"
                     onLoad={() => initCanvas(imgRef2, canvasRef2, 2)}
@@ -2911,6 +3076,7 @@ const ImageBlending = ({
                   <canvas
                     ref={canvasRef2}
                     className="absolute top-0 left-0 w-full h-full cursor-crosshair"
+                    style={{ display: showOverlayOnImage2 ? "none" : "block" }} // Hide canvas when showing overlay
                     onMouseDown={(e) => {
                       if (drawingTool === "rectangle") {
                         startDrawingRect(e, canvasRef2, setRoi2, 2);
@@ -2957,13 +3123,58 @@ const ImageBlending = ({
                           size={20}
                           onClick={(e) => {
                             e.stopPropagation();
-                            setExpandedForROI("image2");
+                            if (showOverlayOnImage2 && overlayResult) {
+                              // For overlay, use normal expand
+                              expandImage(`${BACKEND_URL}/${overlayResult}`);
+                            } else {
+                              // For original image, use ROI expand
+                              setExpandedForROI("image2");
+                            }
                           }}
                         />
                         <span className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 text-xs bg-gray-800 text-white rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
                           Expand View
                         </span>
                       </div>
+                      {/* Toggle Overlay/Original - Only show if overlay exists */}
+                      {overlayResult && (
+                        <div className="relative group">
+                          <svg
+                            size={20}
+                            className="w-5 h-5 cursor-pointer"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setShowOverlayOnImage2(!showOverlayOnImage2);
+                            }}
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            {showOverlayOnImage2 ? (
+                              // Eye icon (showing overlay)
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth="2"
+                                d="M15 12a3 3 0 11-6 0 3 3 0 016 0z M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+                              />
+                            ) : (
+                              // Eye-off icon (showing original)
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth="2"
+                                d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L3 3m6.878 6.878L21 21"
+                              />
+                            )}
+                          </svg>
+                          <span className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 text-xs bg-gray-800 text-white rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+                            {showOverlayOnImage2
+                              ? "Show Original"
+                              : "Show Overlay"}
+                          </span>
+                        </div>
+                      )}
                     </button>
                   </div>
                 </div>
@@ -3118,12 +3329,131 @@ const ImageBlending = ({
               </div>
             </div>
           )}
+          {/* SAM Overlay Generation Section */}
+          {useSAM && uploadedImage2 && (
+            <div className="mt-4 p-4 bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20 rounded-lg border border-purple-200 dark:border-purple-700">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="p-2 rounded-lg bg-purple-100 dark:bg-purple-900/50 text-purple-600 dark:text-purple-300">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="h-5 w-5"
+                    viewBox="0 0 20 20"
+                    fill="currentColor"
+                  >
+                    <path
+                      fillRule="evenodd"
+                      d="M3 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
+                </div>
+                <div>
+                  <h4 className="font-semibold text-purple-700 dark:text-purple-300">
+                    Segmentation
+                  </h4>
+                  <p className="text-sm text-purple-600 dark:text-purple-400">
+                    Generate AI-powered overlay for precise segmentation
+                  </p>
+                </div>
+              </div>
+
+              <button
+                onClick={handleGenerateOverlay}
+                disabled={
+                  isGeneratingOverlay ||
+                  isBlending ||
+                  !(
+                    roi2 ||
+                    (freehandPath2.length > 0 && freehandMask2) ||
+                    (polylinePath2.length > 2 &&
+                      isPolylineComplete2 &&
+                      polylineMask2)
+                  )
+                }
+                className="w-full bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-medium py-2 px-4 rounded-lg flex items-center justify-center transition duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isGeneratingOverlay ? (
+                  <>
+                    <svg
+                      className="animate-spin -ml-1 mr-3 h-5 w-5 text-white"
+                      xmlns="http://www.w3.org/2000/svg"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                    >
+                      <circle
+                        className="opacity-25"
+                        cx="12"
+                        cy="12"
+                        r="10"
+                        stroke="currentColor"
+                        strokeWidth="4"
+                      ></circle>
+                      <path
+                        className="opacity-75"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                      ></path>
+                    </svg>
+                    Generating Overlay...
+                  </>
+                ) : (
+                  <>
+                    <svg
+                      className="w-5 h-5 mr-2"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth="2"
+                        d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+                      />
+                    </svg>
+                    Generate Overlay
+                  </>
+                )}
+              </button>
+            </div>
+          )}
+
+          {/* Overlay Approval Section - Simplified */}
+          {showOverlayApproval && (
+            <div className="mt-4 p-4 bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 rounded-lg border border-green-200 dark:border-green-700">
+              <div className="flex items-center gap-2 mb-3">
+                <svg
+                  className="w-5 h-5 text-green-600 dark:text-green-400"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                  />
+                </svg>
+                <h4 className="font-semibold text-green-700 dark:text-green-300">
+                  Overlay Generated Successfully
+                </h4>
+              </div>
+
+              <p className="text-green-700 dark:text-green-300 text-sm">
+                ✨ Overlay segmentation generated! Use the eye icon above to
+                toggle between original and overlay view. You can now proceed
+                with blending using the Render Images button below, or
+                regenerate the overlay if needed.
+              </p>
+            </div>
+          )}
         </div>
       </div>
 
       {/* NEW: Color channel selection for Image 1 */}
 
-      {/* Blend Button */}
+      {/* Always show Blend Button */}
       <button
         onClick={handleBlendImages}
         disabled={
@@ -3140,6 +3470,7 @@ const ImageBlending = ({
             (polylinePath2.length > 2 && isPolylineComplete2 && polylineMask2)
           ) ||
           isBlending ||
+          isGeneratingOverlay ||
           (isColorImage2 && !selectedChannel) ||
           (isColorImage1 && !selectedChannel1)
         }
@@ -3185,30 +3516,6 @@ const ImageBlending = ({
               <h3 className="text-lg font-semibold dark:text-white">
                 Rendered Image (Single Spot)
               </h3>
-              {/* <div
-                className="relative overflow-hidden rounded-md border dark:border-gray-600 inline-block"
-                style={{ cursor: isDragging ? "grabbing" : "grab" }}
-              >
-                <img
-                  src={`${BACKEND_URL}/${blendedResult}`}
-                  alt="Blended result"
-                  className="max-h-96 w-auto object-contain cursor-move"
-                  style={{
-                    transform: `translate(${position.x}px, ${position.y}px) scale(${scale})`,
-                    transformOrigin: "center center",
-                  }}
-                  onWheel={(e) => handleWheel(e, e.currentTarget.parentElement)}
-                  onMouseDown={handleMouseDown}
-                  onDoubleClick={handleDoubleClick}
-                  draggable={false}
-                />
-                <button
-                  onClick={() => expandImage(`${BACKEND_URL}/${blendedResult}`)}
-                  className="absolute top-2 right-2 bg-black bg-opacity-50 text-white p-1 rounded-full hover:bg-opacity-70"
-                >
-                  <AiOutlineExpand size={20} />
-                </button>
-              </div> */}
               <div className="relative">
                 <img
                   src={`${BACKEND_URL}/${blendedResult}`}
@@ -3742,5 +4049,4 @@ const ImageBlending = ({
     </div>
   );
 };
-
 export default ImageBlending;
