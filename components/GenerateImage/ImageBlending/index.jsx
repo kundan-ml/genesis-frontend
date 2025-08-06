@@ -131,7 +131,8 @@ const ImageBlending = ({
   const [roiModalPosition, setRoiModalPosition] = useState({ x: 0, y: 0 });
   const [isRoiModalDragging, setIsRoiModalDragging] = useState(false);
   const [roiModalDragStart, setRoiModalDragStart] = useState({ x: 0, y: 0 });
-
+  // Add this state for tracking modifier keys
+  const [isSpacePressed, setIsSpacePressed] = useState(false);
   const canvasRef1 = useRef(null);
   const canvasRef2 = useRef(null);
   const imgRef1 = useRef(null);
@@ -611,7 +612,6 @@ const ImageBlending = ({
       width: Math.round(roi.width),
       height: Math.round(roi.height),
     };
-
     ctx.strokeStyle = color;
     ctx.lineWidth = 2;
     ctx.strokeRect(
@@ -866,53 +866,40 @@ const ImageBlending = ({
     e.stopPropagation();
     e.preventDefault();
     const canvas = modalCanvasRef.current;
-    const rect = canvas.getBoundingClientRect();
 
-    // Get raw mouse coordinates
-    const rawX = e.clientX - rect.left;
-    const rawY = e.clientY - rect.top;
-
-    // FIXED: Transform coordinates back to account for zoom/pan
-    const transformedX = (rawX - roiModalPosition.x) / roiModalScale;
-    const transformedY = (rawY - roiModalPosition.y) / roiModalScale;
+    const { x: transformedX, y: transformedY } = getCanvasTransformedCoords(e);
 
     if (drawingTool === "rectangle") {
-      // Check if clicking on existing rectangle first
+      // Check for interaction with existing ROI
       if (modalRoi) {
         const interaction = detectModalRectInteraction(
           transformedX,
           transformedY,
           modalRoi
         );
-
         if (interaction) {
-          // Set up drag/resize mode for modal
           setModalDragMode(interaction);
           setModalIsDraggingRect(interaction === "move");
           setModalIsResizingRect(interaction.startsWith("resize"));
           setModalDragStartPos({ x: transformedX, y: transformedY });
           setModalOriginalRect({ ...modalRoi });
 
-          // Change cursor based on interaction
-          if (interaction === "move") {
-            canvas.style.cursor = "move";
-          } else if (interaction.includes("resize")) {
-            canvas.style.cursor =
-              interaction.includes("se") || interaction.includes("nw")
-                ? "nw-resize"
-                : "ne-resize";
-          }
+          canvas.style.cursor =
+            interaction === "move"
+              ? "move"
+              : interaction.includes("se") || interaction.includes("nw")
+              ? "nw-resize"
+              : "ne-resize";
           return;
         }
       }
 
-      // Start drawing new rectangle
+      // Start new rectangle
       setModalStartPos({ x: transformedX, y: transformedY });
       setIsModalDrawing(true);
       const ctx = canvas.getContext("2d");
       ctx.clearRect(0, 0, canvas.width, canvas.height);
     } else if (drawingTool === "pencil") {
-      // Get natural coordinates for freehand
       const img = modalImgRef.current;
       const imgDimensions =
         expandedForROI === "image1" ? image1Dimensions : image2Dimensions;
@@ -925,7 +912,6 @@ const ImageBlending = ({
       setIsModalDrawing(true);
       setModalFreehandPath([{ x: naturalX, y: naturalY }]);
 
-      // Clear canvas and start drawing
       const ctx = canvas.getContext("2d");
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.strokeStyle = "#00ff00";
@@ -939,49 +925,28 @@ const ImageBlending = ({
 
   const handleModalMouseMove = (e) => {
     if (!isModalDrawing && !modalIsDraggingRect && !modalIsResizingRect) {
-      // Handle cursor changes for existing rectangles
       if (drawingTool === "rectangle" && modalRoi) {
+        const { x, y } = getCanvasTransformedCoords(e);
         const canvas = modalCanvasRef.current;
-        const rect = canvas.getBoundingClientRect();
-        const rawX = e.clientX - rect.left;
-        const rawY = e.clientY - rect.top;
+        const interaction = detectModalRectInteraction(x, y, modalRoi);
 
-        // FIXED: Transform coordinates
-        const transformedX = (rawX - roiModalPosition.x) / roiModalScale;
-        const transformedY = (rawY - roiModalPosition.y) / roiModalScale;
-
-        const interaction = detectModalRectInteraction(
-          transformedX,
-          transformedY,
-          modalRoi
-        );
-
-        if (interaction === "move") {
-          canvas.style.cursor = "move";
-        } else if (interaction === "resize-se" || interaction === "resize-nw") {
-          canvas.style.cursor = "nw-resize";
-        } else if (interaction === "resize-ne" || interaction === "resize-sw") {
-          canvas.style.cursor = "ne-resize";
-        } else {
-          canvas.style.cursor = "crosshair";
-        }
+        canvas.style.cursor =
+          interaction === "move"
+            ? "move"
+            : interaction === "resize-se" || interaction === "resize-nw"
+            ? "nw-resize"
+            : interaction === "resize-ne" || interaction === "resize-sw"
+            ? "ne-resize"
+            : "crosshair";
       }
       return;
     }
 
     e.preventDefault();
     const canvas = modalCanvasRef.current;
-    const rect = canvas.getBoundingClientRect();
-    const rawMouseX = e.clientX - rect.left;
-    const rawMouseY = e.clientY - rect.top;
-
-    // FIXED: Transform mouse coordinates
-    const mouseX = (rawMouseX - roiModalPosition.x) / roiModalScale;
-    const mouseY = (rawMouseY - roiModalPosition.y) / roiModalScale;
-
+    const { x: mouseX, y: mouseY } = getCanvasTransformedCoords(e);
     const ctx = canvas.getContext("2d");
 
-    // Handle drag/resize of existing rectangle
     if ((modalIsDraggingRect || modalIsResizingRect) && modalOriginalRect) {
       const deltaX = mouseX - modalDragStartPos.x;
       const deltaY = mouseY - modalDragStartPos.y;
@@ -989,47 +954,74 @@ const ImageBlending = ({
       let newRoi = { ...modalOriginalRect };
 
       if (modalDragMode === "move") {
-        // Move the rectangle
-        newRoi.x = Math.max(
-          0,
-          Math.min(canvas.width - newRoi.width, modalOriginalRect.x + deltaX)
+        newRoi.x = Math.round(
+          Math.max(
+            0,
+            Math.min(canvas.width - newRoi.width, modalOriginalRect.x + deltaX)
+          )
         );
-        newRoi.y = Math.max(
-          0,
-          Math.min(canvas.height - newRoi.height, modalOriginalRect.y + deltaY)
+        newRoi.y = Math.round(
+          Math.max(
+            0,
+            Math.min(
+              canvas.height - newRoi.height,
+              modalOriginalRect.y + deltaY
+            )
+          )
         );
       } else if (modalDragMode.startsWith("resize")) {
-        // Resize the rectangle
         if (modalDragMode === "resize-se") {
-          newRoi.width = Math.max(10, modalOriginalRect.width + deltaX);
-          newRoi.height = Math.max(10, modalOriginalRect.height + deltaY);
+          newRoi.width = Math.round(
+            Math.max(10, modalOriginalRect.width + deltaX)
+          );
+          newRoi.height = Math.round(
+            Math.max(10, modalOriginalRect.height + deltaY)
+          );
         } else if (modalDragMode === "resize-nw") {
-          const newWidth = Math.max(10, modalOriginalRect.width - deltaX);
-          const newHeight = Math.max(10, modalOriginalRect.height - deltaY);
-          newRoi.x = modalOriginalRect.x + modalOriginalRect.width - newWidth;
-          newRoi.y = modalOriginalRect.y + modalOriginalRect.height - newHeight;
+          const newWidth = Math.round(
+            Math.max(10, modalOriginalRect.width - deltaX)
+          );
+          const newHeight = Math.round(
+            Math.max(10, modalOriginalRect.height - deltaY)
+          );
+          newRoi.x = Math.round(
+            modalOriginalRect.x + modalOriginalRect.width - newWidth
+          );
+          newRoi.y = Math.round(
+            modalOriginalRect.y + modalOriginalRect.height - newHeight
+          );
           newRoi.width = newWidth;
           newRoi.height = newHeight;
         } else if (modalDragMode === "resize-ne") {
-          const newHeight = Math.max(10, modalOriginalRect.height - deltaY);
-          newRoi.y = modalOriginalRect.y + modalOriginalRect.height - newHeight;
-          newRoi.width = Math.max(10, modalOriginalRect.width + deltaX);
+          const newHeight = Math.round(
+            Math.max(10, modalOriginalRect.height - deltaY)
+          );
+          newRoi.y = Math.round(
+            modalOriginalRect.y + modalOriginalRect.height - newHeight
+          );
+          newRoi.width = Math.round(
+            Math.max(10, modalOriginalRect.width + deltaX)
+          );
           newRoi.height = newHeight;
         } else if (modalDragMode === "resize-sw") {
-          const newWidth = Math.max(10, modalOriginalRect.width - deltaX);
-          newRoi.x = modalOriginalRect.x + modalOriginalRect.width - newWidth;
+          const newWidth = Math.round(
+            Math.max(10, modalOriginalRect.width - deltaX)
+          );
+          newRoi.x = Math.round(
+            modalOriginalRect.x + modalOriginalRect.width - newWidth
+          );
           newRoi.width = newWidth;
-          newRoi.height = Math.max(10, modalOriginalRect.height + deltaY);
+          newRoi.height = Math.round(
+            Math.max(10, modalOriginalRect.height + deltaY)
+          );
         }
 
-        // Keep within canvas bounds
         newRoi.x = Math.max(0, newRoi.x);
         newRoi.y = Math.max(0, newRoi.y);
         newRoi.width = Math.min(canvas.width - newRoi.x, newRoi.width);
         newRoi.height = Math.min(canvas.height - newRoi.y, newRoi.height);
       }
 
-      // Update the modal ROI and redraw
       setModalRoi(newRoi);
       drawRoiOnCanvas(canvas, newRoi, "#00ff00");
       return;
@@ -1039,24 +1031,21 @@ const ImageBlending = ({
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.strokeStyle = "#00ff00";
       ctx.lineWidth = 2;
-      ctx.strokeRect(
-        modalStartPos.x,
-        modalStartPos.y,
-        mouseX - modalStartPos.x,
-        mouseY - modalStartPos.y
-      );
 
-      const width = Math.abs(mouseX - modalStartPos.x);
-      const height = Math.abs(mouseY - modalStartPos.y);
+      const rectX = Math.round(modalStartPos.x);
+      const rectY = Math.round(modalStartPos.y);
+      const rectWidth = Math.round(Math.abs(mouseX - modalStartPos.x));
+      const rectHeight = Math.round(Math.abs(mouseY - modalStartPos.y));
+
+      ctx.strokeRect(rectX, rectY, rectWidth, rectHeight);
       ctx.fillStyle = "#00ff00";
       ctx.font = "16px Arial";
       ctx.fillText(
-        `${width}x${height}`,
-        modalStartPos.x + width / 2 - 30,
-        modalStartPos.y + height / 2
+        `${rectWidth}x${rectHeight}`,
+        rectX + rectWidth / 2 - 30,
+        rectY + rectHeight / 2
       );
     } else if (drawingTool === "pencil") {
-      // Get natural coordinates for freehand
       const img = modalImgRef.current;
       const imgDimensions =
         expandedForROI === "image1" ? image1Dimensions : image2Dimensions;
@@ -1066,10 +1055,8 @@ const ImageBlending = ({
       const naturalX = mouseX * scaleX;
       const naturalY = mouseY * scaleY;
 
-      // Add point to path
       setModalFreehandPath((prev) => [...prev, { x: naturalX, y: naturalY }]);
 
-      // Draw on canvas
       ctx.lineTo(mouseX, mouseY);
       ctx.stroke();
     }
@@ -1081,7 +1068,6 @@ const ImageBlending = ({
     e.preventDefault();
     const canvas = modalCanvasRef.current;
 
-    // Reset drag/resize state
     if (modalIsDraggingRect || modalIsResizingRect) {
       setModalIsDraggingRect(false);
       setModalIsResizingRect(false);
@@ -1093,20 +1079,13 @@ const ImageBlending = ({
 
     if (!isModalDrawing) return;
 
-    e.preventDefault();
-    const rect = canvas.getBoundingClientRect();
-    const rawEndX = e.clientX - rect.left;
-    const rawEndY = e.clientY - rect.top;
-
-    // FIXED: Transform end coordinates
-    const endX = (rawEndX - roiModalPosition.x) / roiModalScale;
-    const endY = (rawEndY - roiModalPosition.y) / roiModalScale;
+    const { x: endX, y: endY } = getCanvasTransformedCoords(e);
 
     if (drawingTool === "rectangle") {
-      const x = Math.min(modalStartPos.x, endX);
-      const y = Math.min(modalStartPos.y, endY);
-      const width = Math.abs(endX - modalStartPos.x);
-      const height = Math.abs(endY - modalStartPos.y);
+      const x = Math.round(Math.min(modalStartPos.x, endX));
+      const y = Math.round(Math.min(modalStartPos.y, endY));
+      const width = Math.round(Math.abs(endX - modalStartPos.x));
+      const height = Math.round(Math.abs(endY - modalStartPos.y));
 
       if (width > 2 && height > 2) {
         const roi = { x, y, width, height };
@@ -1122,7 +1101,6 @@ const ImageBlending = ({
         ctx.fillText(`${width}x${height}`, x + width / 2 - 30, y + height / 2);
       }
     } else if (drawingTool === "pencil") {
-      // Generate mask for modal freehand path
       const img = modalImgRef.current;
       const imgDimensions =
         expandedForROI === "image1" ? image1Dimensions : image2Dimensions;
@@ -1136,14 +1114,27 @@ const ImageBlending = ({
           modalFreehandPath,
           tempImg
         );
-
-        // Store the mask for preview
         setGeneratedMask(maskDataURL);
       }
     }
 
     setIsModalDrawing(false);
   };
+
+  const getCanvasTransformedCoords = (e) => {
+    const canvas = modalCanvasRef.current;
+    if (!canvas) return { x: 0, y: 0 };
+
+    const rect = canvas.getBoundingClientRect();
+    const rawX = e.clientX - rect.left;
+    const rawY = e.clientY - rect.top;
+
+    return {
+      x: (rawX - roiModalPosition.x) / roiModalScale,
+      y: (rawY - roiModalPosition.y) / roiModalScale,
+    };
+  };
+
   // Add this new helper function
   const detectModalRectInteraction = (mouseX, mouseY, roi) => {
     if (!roi) return null;
@@ -1188,7 +1179,6 @@ const ImageBlending = ({
 
     return null;
   };
-
   // Save ROI from modal
   const saveModalROI = () => {
     if (drawingTool === "rectangle" && modalRoi) {
@@ -1369,7 +1359,6 @@ const ImageBlending = ({
     setModalOriginalRect(null);
     setExpandedForROI(null);
   };
-
   // Update the drawRect function to handle drag/resize:
   const drawRect = (e, canvasRef) => {
     if (drawingTool !== "rectangle") return;
@@ -3861,7 +3850,6 @@ const ImageBlending = ({
         </section>
       )}
 
-      {/* ROI Drawing Modal */}
       {/* ROI Drawing Modal */}
       <Modal
         isOpen={!!expandedForROI}
