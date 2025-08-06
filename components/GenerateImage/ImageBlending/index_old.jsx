@@ -90,7 +90,7 @@ const ImageBlending = ({
   const [modalFreehandPath, setModalFreehandPath] = useState([]);
   const [freehandMask1, setFreehandMask1] = useState(null);
   const [freehandMask2, setFreehandMask2] = useState(null);
-  // Add these new state variables for polyline drawing
+  // Add these new state variables to your existing state section
   const [polylinePath1, setPolylinePath1] = useState([]);
   const [polylinePath2, setPolylinePath2] = useState([]);
   const [modalPolylinePath, setModalPolylinePath] = useState([]);
@@ -99,39 +99,32 @@ const ImageBlending = ({
   const [isPolylineComplete1, setIsPolylineComplete1] = useState(false);
   const [isPolylineComplete2, setIsPolylineComplete2] = useState(false);
   const [modalPolylineComplete, setModalPolylineComplete] = useState(false);
-  // Add these zoom/pan state variables for the main canvas
+  // Add these zoom/pan state variables with your existing state
   const [scale, setScale] = useState(1);
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
-  // Add these new state variables for the modal canvas
+  // Add these new state variables with your existing state (around line 50):
   const [modalScale, setModalScale] = useState(1);
   const [modalPosition, setModalPosition] = useState({ x: 0, y: 0 });
   const [isModalDragging, setIsModalDragging] = useState(false);
   const [modalDragStart, setModalDragStart] = useState({ x: 0, y: 0 });
-  // Add these new state variables for rectangle dragging/resizing
+  // Add these new state variables with your existing state (around line 50):
   const [isDraggingRect, setIsDraggingRect] = useState(false);
   const [isResizingRect, setIsResizingRect] = useState(false);
   const [dragMode, setDragMode] = useState(null); // 'move', 'resize-se', 'resize-nw', etc.
   const [dragStartPos, setDragStartPos] = useState({ x: 0, y: 0 });
   const [originalRect, setOriginalRect] = useState(null);
-  // Add these new state variables for modal rectangle dragging/resizing
+  // Add these new state variables (add to your existing state section around line 50)
   const [modalIsDraggingRect, setModalIsDraggingRect] = useState(false);
   const [modalIsResizingRect, setModalIsResizingRect] = useState(false);
   const [modalDragMode, setModalDragMode] = useState(null);
   const [modalDragStartPos, setModalDragStartPos] = useState({ x: 0, y: 0 });
   const [modalOriginalRect, setModalOriginalRect] = useState(null);
-  // Add these state variables for overlay generation
+  // Add these state variables with your existing state
   const [isGeneratingOverlay, setIsGeneratingOverlay] = useState(false);
   const [overlayResult, setOverlayResult] = useState(null);
   const [showOverlayApproval, setShowOverlayApproval] = useState(false);
   const [showOverlayOnImage2, setShowOverlayOnImage2] = useState(false);
-
-  // Add these new state variables for ROI modal zoom/pan
-  const [roiModalScale, setRoiModalScale] = useState(1);
-  const [roiModalPosition, setRoiModalPosition] = useState({ x: 0, y: 0 });
-  const [isRoiModalDragging, setIsRoiModalDragging] = useState(false);
-  const [roiModalDragStart, setRoiModalDragStart] = useState({ x: 0, y: 0 });
-
   const canvasRef1 = useRef(null);
   const canvasRef2 = useRef(null);
   const imgRef1 = useRef(null);
@@ -151,120 +144,39 @@ const ImageBlending = ({
       setImage2File(file);
       return;
     }
-
     const reader = new FileReader();
     reader.onload = async (event) => {
       const dataURL = event.target.result;
-
       if (isSecondImage) {
-        // Clear ALL Image 2 related data
         setOriginalImage2DataURL(dataURL);
-        setRoi2(null);
-        setFreehandPath2([]);
-        setFreehandMask2(null);
-        setPolylinePath2([]);
-        setPolylineMask2(null);
-        setIsPolylineComplete2(false);
-
-        // FIXED: Clear overlay-related state for Image 2
-        setOverlayResult(null);
-        setShowOverlayApproval(false);
-        setShowOverlayOnImage2(false);
-        setIsGeneratingOverlay(false);
-
-        // FIXED: Always clear modal state for Image 2 (regardless if modal is open)
-        setModalRoi(null);
-        setModalFreehandPath([]);
-        setModalPolylinePath([]);
-        setModalPolylineComplete(false);
-        setGeneratedMask(null);
-        setTempRoi((prev) => ({ ...prev, roi2: null }));
-
-        // Clear modal canvas if it exists
-        if (modalCanvasRef.current) {
-          const ctx = modalCanvasRef.current.getContext("2d");
-          ctx.clearRect(
-            0,
-            0,
-            modalCanvasRef.current.width,
-            modalCanvasRef.current.height
-          );
-        }
-
         const isColor = await checkIfColorImage(dataURL);
         setIsColorImage2(isColor);
         setSelectedChannel("rgb");
-
+        setRoi2(null);
+        setFreehandPath2([]); // Clear freehand path
+        setFreehandMask2(null); // Clear freehand mask
         if (!isColor) {
           setUploadedImage2(dataURL);
           setProcessedImage2File(file);
         } else {
           setUploadedImage2(dataURL);
         }
-
-        // Clear canvas immediately
-        if (canvasRef2.current) {
-          const ctx = canvasRef2.current.getContext("2d");
-          ctx.clearRect(
-            0,
-            0,
-            canvasRef2.current.width,
-            canvasRef2.current.height
-          );
-        }
       } else {
-        // Clear ALL Image 1 related data
         setOriginalImage1DataURL(dataURL);
-        setRoi1(null);
-        setFreehandPath1([]);
-        setFreehandMask1(null);
-        setPolylinePath1([]);
-        setPolylineMask1(null);
-        setIsPolylineComplete1(false);
-
-        // FIXED: Always clear modal state for Image 1 (regardless if modal is open)
-        setModalRoi(null);
-        setModalFreehandPath([]);
-        setModalPolylinePath([]);
-        setModalPolylineComplete(false);
-        setGeneratedMask(null);
-        setTempRoi((prev) => ({ ...prev, roi1: null }));
-
-        // Clear modal canvas if it exists
-        if (modalCanvasRef.current) {
-          const ctx = modalCanvasRef.current.getContext("2d");
-          ctx.clearRect(
-            0,
-            0,
-            modalCanvasRef.current.width,
-            modalCanvasRef.current.height
-          );
-        }
-
         const isColor = await checkIfColorImage(dataURL);
         setIsColorImage1(isColor);
         setSelectedChannel1("rgb");
-
+        setRoi1(null);
+        setFreehandPath1([]); // Clear freehand path
+        setFreehandMask1(null); // Clear freehand mask
         if (!isColor) {
           setUploadedImage1(dataURL);
           setProcessedImage1File(file);
         } else {
           setUploadedImage1(dataURL);
         }
-
-        // Clear canvas immediately
-        if (canvasRef1.current) {
-          const ctx = canvasRef1.current.getContext("2d");
-          ctx.clearRect(
-            0,
-            0,
-            canvasRef1.current.width,
-            canvasRef1.current.height
-          );
-        }
       }
     };
-
     reader.readAsDataURL(file);
 
     if (isSecondImage) {
@@ -272,8 +184,52 @@ const ImageBlending = ({
     } else {
       setImage1File(file);
     }
-
     e.target.value = null;
+  };
+
+  // Add these functions to handle tool switching and clearing
+  const clearAllSelections = () => {
+    // Clear Image 1 selections
+    setRoi1(null);
+    setFreehandPath1([]);
+    setFreehandMask1(null);
+    setPolylinePath1([]);
+    setPolylineMask1(null);
+    setIsPolylineComplete1(false);
+
+    // Clear Image 2 selections
+    setRoi2(null);
+    setFreehandPath2([]);
+    setFreehandMask2(null);
+    setPolylinePath2([]);
+    setPolylineMask2(null);
+    setIsPolylineComplete2(false);
+
+    // Clear modal selections
+    setModalRoi(null);
+    setModalFreehandPath([]);
+    setModalPolylinePath([]);
+    setModalPolylineComplete(false);
+    setGeneratedMask(null);
+
+    // Clear canvases
+    if (canvasRef1.current) {
+      const ctx = canvasRef1.current.getContext("2d");
+      ctx.clearRect(0, 0, canvasRef1.current.width, canvasRef1.current.height);
+    }
+    if (canvasRef2.current) {
+      const ctx = canvasRef2.current.getContext("2d");
+      ctx.clearRect(0, 0, canvasRef2.current.width, canvasRef2.current.height);
+    }
+    if (modalCanvasRef.current) {
+      const ctx = modalCanvasRef.current.getContext("2d");
+      ctx.clearRect(
+        0,
+        0,
+        modalCanvasRef.current.width,
+        modalCanvasRef.current.height
+      );
+    }
   };
 
   // Update tool selection functions to clear previous selections
@@ -294,42 +250,8 @@ const ImageBlending = ({
         setRoi1(null);
         setFreehandPath1([]);
         setFreehandMask1(null);
-        setPolylinePath1([]);
-        setPolylineMask1(null);
-        setIsPolylineComplete1(false);
-
-        // FIXED: Always clear modal state for Image 1 (regardless if modal is open)
-        setModalRoi(null);
-        setModalFreehandPath([]);
-        setModalPolylinePath([]);
-        setModalPolylineComplete(false);
-        setGeneratedMask(null);
-        setTempRoi((prev) => ({ ...prev, roi1: null }));
-
-        // Clear modal canvas if it exists
-        if (modalCanvasRef.current) {
-          const ctx = modalCanvasRef.current.getContext("2d");
-          ctx.clearRect(
-            0,
-            0,
-            modalCanvasRef.current.width,
-            modalCanvasRef.current.height
-          );
-        }
-
         if (!isColor) {
           setProcessedImage1File(image1File);
-        }
-
-        // Clear canvas
-        if (canvasRef1.current) {
-          const ctx = canvasRef1.current.getContext("2d");
-          ctx.clearRect(
-            0,
-            0,
-            canvasRef1.current.width,
-            canvasRef1.current.height
-          );
         }
       };
       handleExternalImage1Update();
@@ -346,45 +268,8 @@ const ImageBlending = ({
         setRoi2(null);
         setFreehandPath2([]);
         setFreehandMask2(null);
-        setPolylinePath2([]);
-        setPolylineMask2(null);
-        setIsPolylineComplete2(false);
-
-        // FIXED: Clear overlay data for Image 2
-        clearOverlayData();
-
-        // FIXED: Always clear modal state for Image 2 (regardless if modal is open)
-        setModalRoi(null);
-        setModalFreehandPath([]);
-        setModalPolylinePath([]);
-        setModalPolylineComplete(false);
-        setGeneratedMask(null);
-        setTempRoi((prev) => ({ ...prev, roi2: null }));
-
-        // Clear modal canvas if it exists
-        if (modalCanvasRef.current) {
-          const ctx = modalCanvasRef.current.getContext("2d");
-          ctx.clearRect(
-            0,
-            0,
-            modalCanvasRef.current.width,
-            modalCanvasRef.current.height
-          );
-        }
-
         if (!isColor) {
           setProcessedImage2File(image2File);
-        }
-
-        // Clear canvas
-        if (canvasRef2.current) {
-          const ctx = canvasRef2.current.getContext("2d");
-          ctx.clearRect(
-            0,
-            0,
-            canvasRef2.current.width,
-            canvasRef2.current.height
-          );
         }
       };
       handleExternalImage2Update();
@@ -702,6 +587,58 @@ const ImageBlending = ({
     return canvas.toDataURL("image/png");
   };
 
+  // Handle downloading all images as a ZIP
+  const downloadAllAsZip = async () => {
+    try {
+      const zip = new JSZip();
+      const imgFolder = zip.folder("rendered_images");
+
+      const imagesToDownload = [];
+
+      if (type === "multiple") {
+        imagesToDownload.push(
+          {
+            url: `${BACKEND_URL}/${phase_contrast}`,
+            name: "phase_contrast.bmp",
+          },
+          { url: `${BACKEND_URL}/${bright_field}`, name: "bright_field.bmp" },
+          { url: `${BACKEND_URL}/${dark_field}`, name: "dark_field.bmp" },
+          { url: `${BACKEND_URL}/${blendedResult}`, name: "blended_result.bmp" }
+        );
+      } else {
+        imagesToDownload.push({
+          url: `${BACKEND_URL}/${blendedResult}`,
+          name: "blended_result.bmp",
+        });
+
+        // NEW: Add color result if available
+        if (colorBlendedResult) {
+          imagesToDownload.push({
+            url: `${BACKEND_URL}/${colorBlendedResult}`,
+            name: "color_result.bmp",
+          });
+        }
+      }
+
+      // Fetch all images and add them to the ZIP
+      await Promise.all(
+        imagesToDownload.map(async (image) => {
+          const response = await fetch(image.url);
+          const blob = await response.blob();
+          imgFolder.file(image.name, blob);
+        })
+      );
+
+      // Generate the ZIP file
+      const content = await zip.generateAsync({ type: "blob" });
+      saveAs(content, "rendered_images.zip");
+    } catch (error) {
+      console.error("Error creating ZIP file:", error);
+      setErrorMessage("Failed to download images as ZIP");
+      setShowAlert(true);
+    }
+  };
+
   // Updated initModalCanvas function to properly show existing polylines
   const initModalCanvas = () => {
     const canvas = modalCanvasRef.current;
@@ -867,30 +804,20 @@ const ImageBlending = ({
     e.preventDefault();
     const canvas = modalCanvasRef.current;
     const rect = canvas.getBoundingClientRect();
-
-    // Get raw mouse coordinates
-    const rawX = e.clientX - rect.left;
-    const rawY = e.clientY - rect.top;
-
-    // FIXED: Transform coordinates back to account for zoom/pan
-    const transformedX = (rawX - roiModalPosition.x) / roiModalScale;
-    const transformedY = (rawY - roiModalPosition.y) / roiModalScale;
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
 
     if (drawingTool === "rectangle") {
       // Check if clicking on existing rectangle first
       if (modalRoi) {
-        const interaction = detectModalRectInteraction(
-          transformedX,
-          transformedY,
-          modalRoi
-        );
+        const interaction = detectModalRectInteraction(x, y, modalRoi);
 
         if (interaction) {
           // Set up drag/resize mode for modal
           setModalDragMode(interaction);
           setModalIsDraggingRect(interaction === "move");
           setModalIsResizingRect(interaction.startsWith("resize"));
-          setModalDragStartPos({ x: transformedX, y: transformedY });
+          setModalDragStartPos({ x, y });
           setModalOriginalRect({ ...modalRoi });
 
           // Change cursor based on interaction
@@ -907,7 +834,7 @@ const ImageBlending = ({
       }
 
       // Start drawing new rectangle
-      setModalStartPos({ x: transformedX, y: transformedY });
+      setModalStartPos({ x, y });
       setIsModalDrawing(true);
       const ctx = canvas.getContext("2d");
       ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -919,8 +846,8 @@ const ImageBlending = ({
       const scaleX = imgDimensions.naturalWidth / img.offsetWidth;
       const scaleY = imgDimensions.naturalHeight / img.offsetHeight;
 
-      const naturalX = transformedX * scaleX;
-      const naturalY = transformedY * scaleY;
+      const naturalX = x * scaleX;
+      const naturalY = y * scaleY;
 
       setIsModalDrawing(true);
       setModalFreehandPath([{ x: naturalX, y: naturalY }]);
@@ -933,7 +860,7 @@ const ImageBlending = ({
       ctx.lineCap = "round";
       ctx.lineJoin = "round";
       ctx.beginPath();
-      ctx.moveTo(transformedX, transformedY);
+      ctx.moveTo(x, y);
     }
   };
 
@@ -943,18 +870,10 @@ const ImageBlending = ({
       if (drawingTool === "rectangle" && modalRoi) {
         const canvas = modalCanvasRef.current;
         const rect = canvas.getBoundingClientRect();
-        const rawX = e.clientX - rect.left;
-        const rawY = e.clientY - rect.top;
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
 
-        // FIXED: Transform coordinates
-        const transformedX = (rawX - roiModalPosition.x) / roiModalScale;
-        const transformedY = (rawY - roiModalPosition.y) / roiModalScale;
-
-        const interaction = detectModalRectInteraction(
-          transformedX,
-          transformedY,
-          modalRoi
-        );
+        const interaction = detectModalRectInteraction(x, y, modalRoi);
 
         if (interaction === "move") {
           canvas.style.cursor = "move";
@@ -972,13 +891,8 @@ const ImageBlending = ({
     e.preventDefault();
     const canvas = modalCanvasRef.current;
     const rect = canvas.getBoundingClientRect();
-    const rawMouseX = e.clientX - rect.left;
-    const rawMouseY = e.clientY - rect.top;
-
-    // FIXED: Transform mouse coordinates
-    const mouseX = (rawMouseX - roiModalPosition.x) / roiModalScale;
-    const mouseY = (rawMouseY - roiModalPosition.y) / roiModalScale;
-
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
     const ctx = canvas.getContext("2d");
 
     // Handle drag/resize of existing rectangle
@@ -1090,17 +1004,11 @@ const ImageBlending = ({
       canvas.style.cursor = "crosshair";
       return;
     }
-
     if (!isModalDrawing) return;
-
     e.preventDefault();
     const rect = canvas.getBoundingClientRect();
-    const rawEndX = e.clientX - rect.left;
-    const rawEndY = e.clientY - rect.top;
-
-    // FIXED: Transform end coordinates
-    const endX = (rawEndX - roiModalPosition.x) / roiModalScale;
-    const endY = (rawEndY - roiModalPosition.y) / roiModalScale;
+    const endX = e.clientX - rect.left;
+    const endY = e.clientY - rect.top;
 
     if (drawingTool === "rectangle") {
       const x = Math.min(modalStartPos.x, endX);
@@ -1144,6 +1052,7 @@ const ImageBlending = ({
 
     setIsModalDrawing(false);
   };
+
   // Add this new helper function
   const detectModalRectInteraction = (mouseX, mouseY, roi) => {
     if (!roi) return null;
@@ -1481,6 +1390,7 @@ const ImageBlending = ({
   };
 
   // Finish drawing in main view
+  // Update the finishDrawingRect function:
   const finishDrawingRect = (e, canvasRef, setRoi, imageNum) => {
     e.preventDefault();
     const canvas = canvasRef.current;
@@ -1550,6 +1460,7 @@ const ImageBlending = ({
     setIsDrawing(false);
     setCurrentImage(null);
   };
+
   // Add mouse move handler for cursor changes:
   const handleRectMouseMove = (e, canvasRef, imageNum) => {
     if (drawingTool !== "rectangle") return;
@@ -1572,6 +1483,7 @@ const ImageBlending = ({
       }
     }
   };
+
   // NEW: FREEHAND DRAWING FUNCTIONS
   const startDrawingFreehand = (e, canvasRef, imageNum) => {
     e.stopPropagation();
@@ -1803,70 +1715,6 @@ const ImageBlending = ({
     setCurrentImage(imageNum);
   };
 
-  // Modal polyline functions
-  const handleModalPolylineClick = (e) => {
-    e.stopPropagation();
-    e.preventDefault();
-    if (drawingTool !== "polyline") return;
-
-    const canvas = modalCanvasRef.current;
-    const rect = canvas.getBoundingClientRect();
-    const rawX = e.clientX - rect.left;
-    const rawY = e.clientY - rect.top;
-
-    // FIXED: Transform coordinates
-    const x = (rawX - roiModalPosition.x) / roiModalScale;
-    const y = (rawY - roiModalPosition.y) / roiModalScale;
-
-    // Get natural coordinates
-    const img = modalImgRef.current;
-    const imgDimensions =
-      expandedForROI === "image1" ? image1Dimensions : image2Dimensions;
-    const scaleX = imgDimensions.naturalWidth / img.offsetWidth;
-    const scaleY = imgDimensions.naturalHeight / img.offsetHeight;
-
-    const naturalX = x * scaleX;
-    const naturalY = y * scaleY;
-
-    if (modalPolylineComplete) {
-      // Reset if already complete
-      setModalPolylinePath([{ x: naturalX, y: naturalY }]);
-      setModalPolylineComplete(false);
-      // Immediate redraw
-      setTimeout(() => {
-        drawPolylineOnCanvas(
-          canvas,
-          [{ x: naturalX, y: naturalY }],
-          {
-            naturalWidth: imgDimensions.naturalWidth,
-            naturalHeight: imgDimensions.naturalHeight,
-          },
-          "#00ff00",
-          false
-        );
-      }, 0);
-    } else {
-      // Add point to existing path
-      setModalPolylinePath((prev) => {
-        const newPath = [...prev, { x: naturalX, y: naturalY }];
-        // Immediate redraw
-        setTimeout(() => {
-          drawPolylineOnCanvas(
-            canvas,
-            newPath,
-            {
-              naturalWidth: imgDimensions.naturalWidth,
-              naturalHeight: imgDimensions.naturalHeight,
-            },
-            "#00ff00",
-            false
-          );
-        }, 0);
-        return newPath;
-      });
-    }
-  };
-
   // Clear polyline functions
   const clearPolyline1 = () => {
     setPolylinePath1([]);
@@ -1933,6 +1781,65 @@ const ImageBlending = ({
 
     setCurrentImage(null);
   };
+  // Modal polyline functions
+  const handleModalPolylineClick = (e) => {
+    e.stopPropagation();
+    e.preventDefault();
+    if (drawingTool !== "polyline") return;
+
+    const canvas = modalCanvasRef.current;
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    // Get natural coordinates
+    const img = modalImgRef.current;
+    const imgDimensions =
+      expandedForROI === "image1" ? image1Dimensions : image2Dimensions;
+    const scaleX = imgDimensions.naturalWidth / img.offsetWidth;
+    const scaleY = imgDimensions.naturalHeight / img.offsetHeight;
+
+    const naturalX = x * scaleX;
+    const naturalY = y * scaleY;
+
+    if (modalPolylineComplete) {
+      // Reset if already complete
+      setModalPolylinePath([{ x: naturalX, y: naturalY }]);
+      setModalPolylineComplete(false);
+      // Immediate redraw
+      setTimeout(() => {
+        drawPolylineOnCanvas(
+          canvas,
+          [{ x: naturalX, y: naturalY }],
+          {
+            naturalWidth: imgDimensions.naturalWidth,
+            naturalHeight: imgDimensions.naturalHeight,
+          },
+          "#00ff00",
+          false
+        );
+      }, 0);
+    } else {
+      // Add point to existing path
+      setModalPolylinePath((prev) => {
+        const newPath = [...prev, { x: naturalX, y: naturalY }];
+        // Immediate redraw
+        setTimeout(() => {
+          drawPolylineOnCanvas(
+            canvas,
+            newPath,
+            {
+              naturalWidth: imgDimensions.naturalWidth,
+              naturalHeight: imgDimensions.naturalHeight,
+            },
+            "#00ff00",
+            false
+          );
+        }, 0);
+        return newPath;
+      });
+    }
+  };
 
   // Generate mask from polyline path
   const generateMaskFromPolyline = (path, imgElement) => {
@@ -1966,410 +1873,6 @@ const ImageBlending = ({
     return canvas.toDataURL("image/png");
   };
 
-  const expandImage = (imageSrc) => {
-    const images = [`${BACKEND_URL}/${blendedResult}`];
-    // NEW: Include color result
-    if (colorBlendedResult) {
-      images.push(`${BACKEND_URL}/${colorBlendedResult}`);
-    }
-    if (type === "multiple") {
-      images.push(
-        `${BACKEND_URL}/${phase_contrast}`,
-        `${BACKEND_URL}/${bright_field}`,
-        `${BACKEND_URL}/${dark_field}`
-      );
-    }
-    const index = images.findIndex((img) => img === imageSrc);
-    setAllImages(images);
-    setCurrentImageIndex(index >= 0 ? index : 0);
-    setExpandedImage(imageSrc);
-  };
-
-  const navigateImage = (direction) => {
-    if (!allImages.length) return;
-    let newIndex;
-    if (direction === "next") {
-      newIndex = (currentImageIndex + 1) % allImages.length;
-    } else {
-      newIndex = (currentImageIndex - 1 + allImages.length) % allImages.length;
-    }
-    setCurrentImageIndex(newIndex);
-    setExpandedImage(allImages[newIndex]);
-  };
-
-  const handleKeyDown = (e) => {
-    if (expandedImage) {
-      if (e.key === "ArrowRight") {
-        e.preventDefault();
-        navigateImage("next");
-      } else if (e.key === "ArrowLeft") {
-        e.preventDefault();
-        navigateImage("prev");
-      } else if (e.key === "Escape") {
-        e.preventDefault();
-        closeModal();
-      }
-    }
-  };
-
-  useEffect(() => {
-    window.addEventListener("keydown", handleKeyDown);
-    return () => {
-      window.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [expandedImage, currentImageIndex, allImages]);
-
-  const handleModalWheel = (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-
-    const delta = e.deltaY * -0.002; // More precise scaling
-    const minScale = 0.1;
-    const maxScale = 5;
-
-    setModalScale((prevScale) => {
-      const newScale = Math.min(
-        Math.max(minScale, prevScale * (1 + delta)),
-        maxScale
-      );
-
-      // Auto-center when zooming out to minimum
-      if (newScale <= 0.5) {
-        setModalPosition({ x: 0, y: 0 });
-      }
-
-      return newScale;
-    });
-  };
-
-  // Improved mouse down with better drag detection
-  const handleModalImageMouseDown = (e) => {
-    if (e.button === 0) {
-      // Left mouse button only
-      e.preventDefault();
-      e.stopPropagation();
-
-      setIsModalDragging(true);
-      setModalDragStart({
-        x: e.clientX - modalPosition.x,
-        y: e.clientY - modalPosition.y,
-      });
-
-      // Change cursor
-      document.body.style.cursor = "grabbing";
-    }
-  };
-  // Smooth mouse movement
-  const handleModalImageMouseMove = (e) => {
-    if (isModalDragging) {
-      e.preventDefault();
-      e.stopPropagation();
-
-      const newX = e.clientX - modalDragStart.x;
-      const newY = e.clientY - modalDragStart.y;
-
-      setModalPosition({ x: newX, y: newY });
-    }
-  };
-
-  // Clean mouse up
-  const handleModalImageMouseUp = () => {
-    setIsModalDragging(false);
-    document.body.style.cursor = "";
-  };
-
-  // Simple double click reset
-  const handleModalDoubleClick = () => {
-    setModalScale(1);
-    setModalPosition({ x: 0, y: 0 });
-  };
-
-  const handleMouseMove = (event) => {
-    if (isDragging) {
-      console.log("handleMouseMove - dragging", {
-        movementX: event.movementX,
-        movementY: event.movementY,
-      });
-      setPosition((prev) => ({
-        x: prev.x + event.movementX,
-        y: prev.y + event.movementY,
-      }));
-    }
-  };
-
-  const handleMouseUp = () => {
-    console.log("handleMouseUp triggered!");
-    setIsDragging(false);
-  };
-
-  // ROI Modal Zoom Functions
-  const handleRoiModalWheel = (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-
-    const delta = e.deltaY * -0.002; // More precise scaling
-    const minScale = 0.1;
-    const maxScale = 5;
-
-    setRoiModalScale((prevScale) => {
-      const newScale = Math.min(
-        Math.max(minScale, prevScale * (1 + delta)),
-        maxScale
-      );
-
-      // Auto-center when zooming out to minimum
-      if (newScale <= 0.5) {
-        setRoiModalPosition({ x: 0, y: 0 });
-      }
-
-      return newScale;
-    });
-  };
-
-  // ROI Modal Image Pan Functions
-  const handleRoiModalImageMouseDown = (e) => {
-    if (
-      e.button === 0 &&
-      !isModalDrawing &&
-      !modalIsDraggingRect &&
-      !modalIsResizingRect
-    ) {
-      // Only allow panning when not drawing
-      e.preventDefault();
-      e.stopPropagation();
-
-      setIsRoiModalDragging(true);
-      setRoiModalDragStart({
-        x: e.clientX - roiModalPosition.x,
-        y: e.clientY - roiModalPosition.y,
-      });
-
-      // Change cursor
-      document.body.style.cursor = "grabbing";
-    }
-  };
-
-  const handleRoiModalImageMouseMove = (e) => {
-    if (isRoiModalDragging) {
-      e.preventDefault();
-      e.stopPropagation();
-
-      const newX = e.clientX - roiModalDragStart.x;
-      const newY = e.clientY - roiModalDragStart.y;
-
-      setRoiModalPosition({ x: newX, y: newY });
-    }
-  };
-
-  const handleRoiModalImageMouseUp = () => {
-    setIsRoiModalDragging(false);
-    document.body.style.cursor = "";
-  };
-
-  const handleRoiModalDoubleClick = () => {
-    setRoiModalScale(1);
-    setRoiModalPosition({ x: 0, y: 0 });
-  };
-
-  // Add useEffect for ROI modal mouse events (add this after your existing useEffects):
-  useEffect(() => {
-    if (isRoiModalDragging) {
-      const handleMouseMove = (e) => handleRoiModalImageMouseMove(e);
-      const handleMouseUp = () => handleRoiModalImageMouseUp();
-
-      document.addEventListener("mousemove", handleMouseMove, {
-        passive: false,
-      });
-      document.addEventListener("mouseup", handleMouseUp);
-
-      // Prevent text selection while dragging
-      document.body.style.userSelect = "none";
-
-      return () => {
-        document.removeEventListener("mousemove", handleMouseMove);
-        document.removeEventListener("mouseup", handleMouseUp);
-        document.body.style.userSelect = "";
-        document.body.style.cursor = "";
-      };
-    }
-  }, [isRoiModalDragging, roiModalDragStart]);
-
-  // Reset ROI modal zoom when modal opens/closes
-  useEffect(() => {
-    if (expandedForROI) {
-      setRoiModalScale(1);
-      setRoiModalPosition({ x: 0, y: 0 });
-      setIsRoiModalDragging(false);
-    }
-  }, [expandedForROI]);
-
-  const closeModal = () => {
-    setExpandedImage(null);
-    setAllImages([]);
-    setCurrentImageIndex(0);
-    // Reset modal zoom state
-    setModalScale(1);
-    setModalPosition({ x: 0, y: 0 });
-    setIsModalDragging(false);
-  };
-
-  // Add useEffect for modal mouse events
-  useEffect(() => {
-    if (isModalDragging) {
-      const handleMouseMove = (e) => handleModalImageMouseMove(e);
-      const handleMouseUp = () => handleModalImageMouseUp();
-
-      document.addEventListener("mousemove", handleMouseMove, {
-        passive: false,
-      });
-      document.addEventListener("mouseup", handleMouseUp);
-
-      // Prevent text selection while dragging
-      document.body.style.userSelect = "none";
-
-      return () => {
-        document.removeEventListener("mousemove", handleMouseMove);
-        document.removeEventListener("mouseup", handleMouseUp);
-        document.body.style.userSelect = "";
-        document.body.style.cursor = "";
-      };
-    }
-  }, [isModalDragging, modalDragStart]);
-
-  // Reset modal zoom when modal opens/closes
-  useEffect(() => {
-    if (expandedImage) {
-      setModalScale(1);
-      setModalPosition({ x: 0, y: 0 });
-      setIsModalDragging(false);
-    }
-  }, [expandedImage]);
-
-  // Add useEffect for mouse events
-  useEffect(() => {
-    if (isDragging) {
-      window.addEventListener("mousemove", handleMouseMove);
-      window.addEventListener("mouseup", handleMouseUp);
-    }
-
-    return () => {
-      window.removeEventListener("mousemove", handleMouseMove);
-      window.removeEventListener("mouseup", handleMouseUp);
-    };
-  }, [isDragging]);
-
-  // Add this helper function to detect what part of rectangle is being clicked:
-  const detectRectInteraction = (mouseX, mouseY, roi, img) => {
-    if (!roi || !img) return null;
-
-    const scaleX = img.offsetWidth / img.naturalWidth;
-    const scaleY = img.offsetHeight / img.naturalHeight;
-
-    const displayRoi = {
-      x: roi.x * scaleX,
-      y: roi.y * scaleY,
-      width: roi.width * scaleX,
-      height: roi.height * scaleY,
-    };
-
-    const handleSize = 8; // Size of resize handles
-
-    // Check corners for resize handles
-    if (
-      Math.abs(mouseX - (displayRoi.x + displayRoi.width)) < handleSize &&
-      Math.abs(mouseY - (displayRoi.y + displayRoi.height)) < handleSize
-    ) {
-      return "resize-se"; // Southeast corner
-    }
-    if (
-      Math.abs(mouseX - displayRoi.x) < handleSize &&
-      Math.abs(mouseY - displayRoi.y) < handleSize
-    ) {
-      return "resize-nw"; // Northwest corner
-    }
-    if (
-      Math.abs(mouseX - (displayRoi.x + displayRoi.width)) < handleSize &&
-      Math.abs(mouseY - displayRoi.y) < handleSize
-    ) {
-      return "resize-ne"; // Northeast corner
-    }
-    if (
-      Math.abs(mouseX - displayRoi.x) < handleSize &&
-      Math.abs(mouseY - (displayRoi.y + displayRoi.height)) < handleSize
-    ) {
-      return "resize-sw"; // Southwest corner
-    }
-
-    // Check if inside rectangle for moving
-    if (
-      mouseX >= displayRoi.x &&
-      mouseX <= displayRoi.x + displayRoi.width &&
-      mouseY >= displayRoi.y &&
-      mouseY <= displayRoi.y + displayRoi.height
-    ) {
-      return "move";
-    }
-
-    return null;
-  };
-
-  // Add these functions to handle tool switching and clearing
-  const clearAllSelections = () => {
-    // Clear Image 1 selections
-    setRoi1(null);
-    setFreehandPath1([]);
-    setFreehandMask1(null);
-    setPolylinePath1([]);
-    setPolylineMask1(null);
-    setIsPolylineComplete1(false);
-
-    // Clear Image 2 selections
-    setRoi2(null);
-    setFreehandPath2([]);
-    setFreehandMask2(null);
-    setPolylinePath2([]);
-    setPolylineMask2(null);
-    setIsPolylineComplete2(false);
-
-    // FIXED: Clear overlay-related state
-    setOverlayResult(null);
-    setShowOverlayApproval(false);
-    setShowOverlayOnImage2(false);
-    setIsGeneratingOverlay(false);
-
-    // Clear modal selections
-    setModalRoi(null);
-    setModalFreehandPath([]);
-    setModalPolylinePath([]);
-    setModalPolylineComplete(false);
-    setGeneratedMask(null);
-
-    // Clear canvases
-    if (canvasRef1.current) {
-      const ctx = canvasRef1.current.getContext("2d");
-      ctx.clearRect(0, 0, canvasRef1.current.width, canvasRef1.current.height);
-    }
-    if (canvasRef2.current) {
-      const ctx = canvasRef2.current.getContext("2d");
-      ctx.clearRect(0, 0, canvasRef2.current.width, canvasRef2.current.height);
-    }
-    if (modalCanvasRef.current) {
-      const ctx = modalCanvasRef.current.getContext("2d");
-      ctx.clearRect(
-        0,
-        0,
-        modalCanvasRef.current.width,
-        modalCanvasRef.current.height
-      );
-    }
-  };
-
-  const clearOverlayData = () => {
-    setOverlayResult(null);
-    setShowOverlayApproval(false);
-    setShowOverlayOnImage2(false);
-    setIsGeneratingOverlay(false);
-  };
   const downloadAsBMP = async () => {
     if (!expandedImage) return;
     try {
@@ -2825,56 +2328,249 @@ const ImageBlending = ({
     });
   };
 
-  // Handle downloading all images as a ZIP
-  const downloadAllAsZip = async () => {
-    try {
-      const zip = new JSZip();
-      const imgFolder = zip.folder("rendered_images");
+  const expandImage = (imageSrc) => {
+    const images = [`${BACKEND_URL}/${blendedResult}`];
+    // NEW: Include color result
+    if (colorBlendedResult) {
+      images.push(`${BACKEND_URL}/${colorBlendedResult}`);
+    }
+    if (type === "multiple") {
+      images.push(
+        `${BACKEND_URL}/${phase_contrast}`,
+        `${BACKEND_URL}/${bright_field}`,
+        `${BACKEND_URL}/${dark_field}`
+      );
+    }
+    const index = images.findIndex((img) => img === imageSrc);
+    setAllImages(images);
+    setCurrentImageIndex(index >= 0 ? index : 0);
+    setExpandedImage(imageSrc);
+  };
 
-      const imagesToDownload = [];
+  const navigateImage = (direction) => {
+    if (!allImages.length) return;
+    let newIndex;
+    if (direction === "next") {
+      newIndex = (currentImageIndex + 1) % allImages.length;
+    } else {
+      newIndex = (currentImageIndex - 1 + allImages.length) % allImages.length;
+    }
+    setCurrentImageIndex(newIndex);
+    setExpandedImage(allImages[newIndex]);
+  };
 
-      if (type === "multiple") {
-        imagesToDownload.push(
-          {
-            url: `${BACKEND_URL}/${phase_contrast}`,
-            name: "phase_contrast.bmp",
-          },
-          { url: `${BACKEND_URL}/${bright_field}`, name: "bright_field.bmp" },
-          { url: `${BACKEND_URL}/${dark_field}`, name: "dark_field.bmp" },
-          { url: `${BACKEND_URL}/${blendedResult}`, name: "blended_result.bmp" }
-        );
-      } else {
-        imagesToDownload.push({
-          url: `${BACKEND_URL}/${blendedResult}`,
-          name: "blended_result.bmp",
-        });
-
-        // NEW: Add color result if available
-        if (colorBlendedResult) {
-          imagesToDownload.push({
-            url: `${BACKEND_URL}/${colorBlendedResult}`,
-            name: "color_result.bmp",
-          });
-        }
+  const handleKeyDown = (e) => {
+    if (expandedImage) {
+      if (e.key === "ArrowRight") {
+        e.preventDefault();
+        navigateImage("next");
+      } else if (e.key === "ArrowLeft") {
+        e.preventDefault();
+        navigateImage("prev");
+      } else if (e.key === "Escape") {
+        e.preventDefault();
+        closeModal();
       }
+    }
+  };
 
-      // Fetch all images and add them to the ZIP
-      await Promise.all(
-        imagesToDownload.map(async (image) => {
-          const response = await fetch(image.url);
-          const blob = await response.blob();
-          imgFolder.file(image.name, blob);
-        })
+  useEffect(() => {
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [expandedImage, currentImageIndex, allImages]);
+
+  const closeModal = () => {
+    setExpandedImage(null);
+    setAllImages([]);
+    setCurrentImageIndex(0);
+    // Reset modal zoom state
+    setModalScale(1);
+    setModalPosition({ x: 0, y: 0 });
+    setIsModalDragging(false);
+  };
+
+  const handleModalWheel = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    const delta = e.deltaY * -0.002; // More precise scaling
+    const minScale = 0.1;
+    const maxScale = 5;
+
+    setModalScale((prevScale) => {
+      const newScale = Math.min(
+        Math.max(minScale, prevScale * (1 + delta)),
+        maxScale
       );
 
-      // Generate the ZIP file
-      const content = await zip.generateAsync({ type: "blob" });
-      saveAs(content, "rendered_images.zip");
-    } catch (error) {
-      console.error("Error creating ZIP file:", error);
-      setErrorMessage("Failed to download images as ZIP");
-      setShowAlert(true);
+      // Auto-center when zooming out to minimum
+      if (newScale <= 0.5) {
+        setModalPosition({ x: 0, y: 0 });
+      }
+
+      return newScale;
+    });
+  };
+
+  // Improved mouse down with better drag detection
+  const handleModalImageMouseDown = (e) => {
+    if (e.button === 0) {
+      // Left mouse button only
+      e.preventDefault();
+      e.stopPropagation();
+
+      setIsModalDragging(true);
+      setModalDragStart({
+        x: e.clientX - modalPosition.x,
+        y: e.clientY - modalPosition.y,
+      });
+
+      // Change cursor
+      document.body.style.cursor = "grabbing";
     }
+  };
+  // Smooth mouse movement
+  const handleModalImageMouseMove = (e) => {
+    if (isModalDragging) {
+      e.preventDefault();
+      e.stopPropagation();
+
+      const newX = e.clientX - modalDragStart.x;
+      const newY = e.clientY - modalDragStart.y;
+
+      setModalPosition({ x: newX, y: newY });
+    }
+  };
+
+  // Clean mouse up
+  const handleModalImageMouseUp = () => {
+    setIsModalDragging(false);
+    document.body.style.cursor = "";
+  };
+
+  // Simple double click reset
+  const handleModalDoubleClick = () => {
+    setModalScale(1);
+    setModalPosition({ x: 0, y: 0 });
+  };
+  // Add useEffect for modal mouse events
+  useEffect(() => {
+    if (isModalDragging) {
+      const handleMouseMove = (e) => handleModalImageMouseMove(e);
+      const handleMouseUp = () => handleModalImageMouseUp();
+
+      document.addEventListener("mousemove", handleMouseMove, {
+        passive: false,
+      });
+      document.addEventListener("mouseup", handleMouseUp);
+
+      // Prevent text selection while dragging
+      document.body.style.userSelect = "none";
+
+      return () => {
+        document.removeEventListener("mousemove", handleMouseMove);
+        document.removeEventListener("mouseup", handleMouseUp);
+        document.body.style.userSelect = "";
+        document.body.style.cursor = "";
+      };
+    }
+  }, [isModalDragging, modalDragStart]);
+
+  // Reset modal zoom when modal opens/closes
+  useEffect(() => {
+    if (expandedImage) {
+      setModalScale(1);
+      setModalPosition({ x: 0, y: 0 });
+      setIsModalDragging(false);
+    }
+  }, [expandedImage]);
+
+  const handleMouseMove = (event) => {
+    if (isDragging) {
+      console.log("handleMouseMove - dragging", {
+        movementX: event.movementX,
+        movementY: event.movementY,
+      });
+      setPosition((prev) => ({
+        x: prev.x + event.movementX,
+        y: prev.y + event.movementY,
+      }));
+    }
+  };
+
+  const handleMouseUp = () => {
+    console.log("handleMouseUp triggered!");
+    setIsDragging(false);
+  };
+
+  // Add useEffect for mouse events
+  useEffect(() => {
+    if (isDragging) {
+      window.addEventListener("mousemove", handleMouseMove);
+      window.addEventListener("mouseup", handleMouseUp);
+    }
+
+    return () => {
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, [isDragging]);
+
+  // Add this helper function to detect what part of rectangle is being clicked:
+  const detectRectInteraction = (mouseX, mouseY, roi, img) => {
+    if (!roi || !img) return null;
+
+    const scaleX = img.offsetWidth / img.naturalWidth;
+    const scaleY = img.offsetHeight / img.naturalHeight;
+
+    const displayRoi = {
+      x: roi.x * scaleX,
+      y: roi.y * scaleY,
+      width: roi.width * scaleX,
+      height: roi.height * scaleY,
+    };
+
+    const handleSize = 8; // Size of resize handles
+
+    // Check corners for resize handles
+    if (
+      Math.abs(mouseX - (displayRoi.x + displayRoi.width)) < handleSize &&
+      Math.abs(mouseY - (displayRoi.y + displayRoi.height)) < handleSize
+    ) {
+      return "resize-se"; // Southeast corner
+    }
+    if (
+      Math.abs(mouseX - displayRoi.x) < handleSize &&
+      Math.abs(mouseY - displayRoi.y) < handleSize
+    ) {
+      return "resize-nw"; // Northwest corner
+    }
+    if (
+      Math.abs(mouseX - (displayRoi.x + displayRoi.width)) < handleSize &&
+      Math.abs(mouseY - displayRoi.y) < handleSize
+    ) {
+      return "resize-ne"; // Northeast corner
+    }
+    if (
+      Math.abs(mouseX - displayRoi.x) < handleSize &&
+      Math.abs(mouseY - (displayRoi.y + displayRoi.height)) < handleSize
+    ) {
+      return "resize-sw"; // Southwest corner
+    }
+
+    // Check if inside rectangle for moving
+    if (
+      mouseX >= displayRoi.x &&
+      mouseX <= displayRoi.x + displayRoi.width &&
+      mouseY >= displayRoi.y &&
+      mouseY <= displayRoi.y + displayRoi.height
+    ) {
+      return "move";
+    }
+
+    return null;
   };
 
   const downloadColorImageAs24Bit = async () => {
@@ -3862,7 +3558,6 @@ const ImageBlending = ({
       )}
 
       {/* ROI Drawing Modal */}
-      {/* ROI Drawing Modal */}
       <Modal
         isOpen={!!expandedForROI}
         onRequestClose={() => setExpandedForROI(null)}
@@ -3948,59 +3643,30 @@ const ImageBlending = ({
             </button>
           </div>
 
-          <div
-            className="relative border-2 border-blue-400 rounded-lg overflow-hidden"
-            onWheel={handleRoiModalWheel}
-          >
+          <div className="relative border-2 border-blue-400 rounded-lg overflow-auto">
             {expandedForROI === "image1" && uploadedImage1 && (
               <img
                 src={
                   isColorImage1 ? image1_gray || uploadedImage1 : uploadedImage1
                 }
                 alt="Full size Raw Image"
-                className="max-h-[85vh] max-w-full object-contain transition-transform duration-200"
+                className="max-h-[85vh] max-w-full object-contain"
                 ref={modalImgRef}
                 onLoad={initModalCanvas}
-                style={{
-                  transform: `translate(${roiModalPosition.x}px, ${roiModalPosition.y}px) scale(${roiModalScale})`,
-                  cursor: isRoiModalDragging
-                    ? "grabbing"
-                    : roiModalScale > 1
-                    ? "grab"
-                    : "crosshair",
-                }}
-                onMouseDown={handleRoiModalImageMouseDown}
-                onDoubleClick={handleRoiModalDoubleClick}
-                draggable={false}
               />
             )}
             {expandedForROI === "image2" && (uploadedImage2 || isDefault) && (
               <img
                 src={isDefault || uploadedImage2}
                 alt="Full size Photo Image"
-                className="max-h-[85vh] max-w-full object-contain transition-transform duration-200"
+                className="max-h-[85vh] max-w-full object-contain"
                 ref={modalImgRef}
                 onLoad={initModalCanvas}
-                style={{
-                  transform: `translate(${roiModalPosition.x}px, ${roiModalPosition.y}px) scale(${roiModalScale})`,
-                  cursor: isRoiModalDragging
-                    ? "grabbing"
-                    : roiModalScale > 1
-                    ? "grab"
-                    : "crosshair",
-                }}
-                onMouseDown={handleRoiModalImageMouseDown}
-                onDoubleClick={handleRoiModalDoubleClick}
-                draggable={false}
               />
             )}
             <canvas
               ref={modalCanvasRef}
               className="absolute top-0 left-0 w-full h-full cursor-crosshair"
-              style={{
-                transform: `translate(${roiModalPosition.x}px, ${roiModalPosition.y}px) scale(${roiModalScale})`,
-                transformOrigin: "center center",
-              }}
               onMouseDown={(e) => {
                 if (drawingTool === "rectangle") {
                   handleModalMouseDown(e);
@@ -4026,81 +3692,6 @@ const ImageBlending = ({
                 }
               }}
             />
-
-            {/* Zoom controls for ROI Modal */}
-            <div className="absolute bottom-4 right-4 bg-white dark:bg-neutral-800 p-1 rounded-full shadow-sm border border-neutral-200 dark:border-neutral-700 flex flex-col space-y-1 z-10">
-              <button
-                onClick={() =>
-                  setRoiModalScale((prev) => Math.min(prev * 1.2, 5))
-                }
-                className="p-1 rounded-full text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-200 transition-all"
-                aria-label="Zoom in"
-              >
-                <svg
-                  className="w-4 h-4"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth="2"
-                    d="M12 6v6m0 0v6m0-6h6m-6 0H6"
-                  ></path>
-                </svg>
-              </button>
-              <button
-                onClick={() =>
-                  setRoiModalScale((prev) => Math.max(prev * 0.8, 0.1))
-                }
-                className="p-1 rounded-full text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-200 transition-all"
-                aria-label="Zoom out"
-              >
-                <svg
-                  className="w-4 h-4"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth="2"
-                    d="M20 12H4"
-                  ></path>
-                </svg>
-              </button>
-              <button
-                onClick={() => {
-                  setRoiModalScale(1);
-                  setRoiModalPosition({ x: 0, y: 0 });
-                }}
-                className="p-1 rounded-full text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-200 transition-all"
-                aria-label="Reset zoom"
-              >
-                <svg
-                  className="w-4 h-4"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth="2"
-                    d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"
-                  ></path>
-                </svg>
-              </button>
-            </div>
-
-            {/* Zoom level indicator */}
-            {roiModalScale !== 1 && (
-              <div className="absolute bottom-4 left-4 bg-black bg-opacity-50 text-white px-3 py-1 rounded-lg text-sm z-10">
-                {Math.round(roiModalScale * 100)}%
-              </div>
-            )}
           </div>
         </div>
       </Modal>
