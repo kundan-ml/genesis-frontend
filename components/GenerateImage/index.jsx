@@ -91,6 +91,9 @@ const GenerateImages = ({
   });
   const [isCombinedModalDragging, setIsCombinedModalDragging] = useState(false);
 
+  const [composerCheckpoint, setComposerCheckpoint] =
+    useState("Composer_v1.0.0.0");
+
   useEffect(() => {
     fetch(`${BACKEND_URL}/api/users/`) // Replace with your actual endpoint
       .then((response) => response.json())
@@ -215,7 +218,9 @@ const GenerateImages = ({
     formData.append("selectedCheckpoint", selectedCheckpoint);
     formData.append("inpenting_uniqe_code", inpenting_uniqe_code);
     formData.append("upscale", upscale);
-
+    if (isInpenting && currentProject === "GSW LPCC") {
+      formData.append("composerCheckpoint", composerCheckpoint);
+    }
     setLoading(true);
     setDrawerOpen(false);
     try {
@@ -726,6 +731,8 @@ const GenerateImages = ({
         setPdfDoc={setPdfDoc}
         setIsPdf={setIsPdf}
         loading={loading}
+        composerCheckpoint={composerCheckpoint}
+        setComposerCheckpoint={setComposerCheckpoint}
       />
 
       {/* Main Content Section */}

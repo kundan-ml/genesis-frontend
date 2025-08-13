@@ -78,6 +78,8 @@ const Sidebar = ({
   setPdfDoc,
   setIsPdf,
   loading,
+  composerCheckpoint,
+  setComposerCheckpoint,
 }) => {
   const darkTheme = true;
   const [totalCredit, setTotalCredit] = useState(profile.credit);
@@ -92,7 +94,7 @@ const Sidebar = ({
   const [project_list, setProjectlist] = useState({});
   const [selectedImages, setSelectedImages] = useState([]);
   const trained_model = ["LensAI-v1.5-512"];
-
+  const composerCheckpoints = ["Composer_v1.0.0.0", "Composer_v1.0.0.1"];
   // Image Blending state
 
   const allowedChars = /^[a-zA-Z0-9,.(){}[\]@!$+=_/?\- "\n]*$/;
@@ -790,6 +792,43 @@ const Sidebar = ({
                       </div>
                     </div>
                   </>
+                )}
+              </div>
+            )}
+
+            {/* Checkpoint Selection - Only for Inpainting project "GSW LPCC" */}
+            {isInpenting && selectedProject === "GSW LPCC" && (
+              <div
+                className={`border-y px-2 py-2 bg-transparent shadow-md overflow-hidden ${
+                  openSections.includes("modelSelection")
+                    ? "border-gray-500"
+                    : "border-gray-600"
+                } transition-all duration-300`}
+              >
+                <label
+                  htmlFor="modelSelectionDropdown"
+                  className="cursor-pointer flex px-1 py-2 items-center text-sm dark:hover:text-neutral-400 hover:text-gray-800"
+                  onClick={() => toggleSection("modelSelection")}
+                >
+                  <GiArtificialHive
+                    className={`h-4 w-4 mr-2 dark:text-white text-indigo-500`}
+                  />
+                  Model Selection
+                </label>
+                {openSections.includes("modelSelection") && (
+                  <select
+                    id="modelSelectionDropdown"
+                    value={composerCheckpoint}
+                    onChange={(e) => setComposerCheckpoint(e.target.value)}
+                    className="w-full px-2 text-xs py-1 my-1 dark:border-[#1a1a1a] border-gray-100 rounded-sm font-roboto transition-all dark:hover:border-neutral-600 hover:border-gray-400 bg-transparent focus:outline-none dark:focus:bg-neutral-700 focus:bg-gray-300"
+                    required
+                  >
+                    {composerCheckpoints.map((checkpoint, index) => (
+                      <option key={index} value={checkpoint}>
+                        {checkpoint}
+                      </option>
+                    ))}
+                  </select>
                 )}
               </div>
             )}
