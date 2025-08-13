@@ -33,6 +33,13 @@ const BoundingBoxDraw = ({
   const maskCanvasRef = useRef(null);
   const BACKEND_URL = process.env.BACKEND_URL;
   const [selectedTool, setSelectedTool] = useState("sam_rectangle");
+  const [isShrunk, setIsShrunk] = useState(false);
+
+  useEffect(() => {
+    if (inputPrompt && !isShrunk) {
+      setIsShrunk(true);
+    }
+  }, [inputPrompt]);
 
   // Initialize color detection when image is uploaded
   useEffect(() => {
@@ -581,18 +588,20 @@ const BoundingBoxDraw = ({
         selectedTool={selectedTool}
         setSelectedTool={setSelectedTool}
         clearAllShapes={clearAllShapes}
+        isShrunk={isShrunk}
+        setIsShrunk={setIsShrunk}
       />
       <section
         className={`transition-all duration-1000 ease-in-out ${
-          inputPrompt ? "w-[400px] ml-4" : "w-full" // Changed from mx-auto to ml-4
-        } max-w-10xl mb-0 border-none h-auto py-0 sm:px-0`} // Added px-4 for padding
+          isShrunk ? "w-[400px] ml-4" : "w-full"
+        }  max-w-10xl mb-0 border-none h-auto py-0 sm:px-0`}
       >
         <div className="mb-8 mx-0 sm:ml-[7vw] py-6 sm:py-0 border-none rounded-2xl shadow-lg">
           <div className="flex items-center justify-between space-x-8">
             <div className="flex flex-col w-full gap-4">
               <div
                 className={`grid ${
-                  inputPrompt && !(maskImage || clientSideMask)
+                  isShrunk && !(maskImage || clientSideMask)
                     ? "grid-cols-1"
                     : "grid-cols-2"
                 } gap-8 w-full`}
@@ -601,7 +610,7 @@ const BoundingBoxDraw = ({
                 <div className="relative">
                   <div
                     className={`relative mt-4 ${
-                      inputPrompt ? "p-1" : "p-2"
+                      isShrunk ? "p-1" : "p-2"
                     } bg-white/10 rounded-lg shadow-xl`}
                   >
                     <canvas
