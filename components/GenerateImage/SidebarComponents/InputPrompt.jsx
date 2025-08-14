@@ -193,7 +193,7 @@ const InputPrompt = ({
       "phase contrast,water schlieren",
       "clean lens surface",
     ],
-    "GSW LPCC": [
+    " LPCC": [
       "edge gap on lens edge",
       "edge tear on lens edge",
       "hole on the lens surface",

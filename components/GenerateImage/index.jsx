@@ -218,7 +218,7 @@ const GenerateImages = ({
     formData.append("selectedCheckpoint", selectedCheckpoint);
     formData.append("inpenting_uniqe_code", inpenting_uniqe_code);
     formData.append("upscale", upscale);
-    if (isInpenting && currentProject === "GSW LPCC") {
+    if (isInpenting && currentProject === "LPCC") {
       formData.append("composerCheckpoint", composerCheckpoint);
     }
     setLoading(true);
