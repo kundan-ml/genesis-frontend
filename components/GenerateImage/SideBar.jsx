@@ -399,7 +399,7 @@ const Sidebar = ({
                       <>
                         <option value="LS3 BV">LS3 BV</option>
                         {isInpenting && !isImageBlending && (
-                          <option value="LPCC">LPCC</option>
+                          <option value="LPC Color">LPC Color</option>
                         )}
                       </>
                     ) : (
@@ -796,8 +796,8 @@ const Sidebar = ({
               </div>
             )}
 
-            {/* Checkpoint Selection - Only for Inpainting project "LPCC" */}
-            {isInpenting && selectedProject === "LPCC" && (
+            {/* Checkpoint Selection - Only for Inpainting project "LPC Color" */}
+            {isInpenting && selectedProject === "LPC Color" && (
               <div
                 className={`border-y px-2 py-2 bg-transparent shadow-md overflow-hidden ${
                   openSections.includes("modelSelection")
