@@ -1,6 +1,8 @@
 import React, { useState, useRef, useEffect } from "react";
 import axios from "axios";
 import SelectTool from "../SelectTools";
+import Modal from "react-modal";
+import { AiOutlineCloudUpload, AiOutlineExpand } from "react-icons/ai";
 
 const BoundingBoxDraw = ({
   image,
@@ -17,29 +19,46 @@ const BoundingBoxDraw = ({
   const [boundingBoxes, setBoundingBoxes] = useState([]);
   const [isDrawing, setIsDrawing] = useState(false);
   const [existingMask, setExistingMask] = useState(null);
-  const [showPopup, setShowPopup] = useState(false);
-  const [newBoundingBox, setNewBoundingBox] = useState(null);
   const [freehandPath, setFreehandPath] = useState([]);
   const [clientSideMask, setClientSideMask] = useState(null);
   const [freehandPaths, setFreehandPaths] = useState([]);
+  const [polylinePaths, setPolylinePaths] = useState([]);
+  const [currentPolylinePath, setCurrentPolylinePath] = useState([]);
   const [roiImage, setRoiImage] = useState(null);
   const [isColorImage, setIsColorImage] = useState(true);
   const [selectedChannel, setSelectedChannel] = useState("rgb");
   const [originalImageDataURL, setOriginalImageDataURL] = useState("");
   const [processedImageDataURL, setProcessedImageDataURL] = useState("");
   const [processedImageFile, setProcessedImageFile] = useState(null);
-  const imageRef = useRef(null);
+
+  // Modal states
+  const [showExpandModal, setShowExpandModal] = useState(false);
+  const [modalScale, setModalScale] = useState(1);
+  const [modalPosition, setModalPosition] = useState({ x: 0, y: 0 });
+  const [isPanning, setIsPanning] = useState(false);
+  const [panStart, setPanStart] = useState({ x: 0, y: 0 });
+  const [spacePressed, setSpacePressed] = useState(false);
+
+  // Polyline double-click detection
+  const [lastClickTime, setLastClickTime] = useState(0);
+  const [lastClickPos, setLastClickPos] = useState({ x: 0, y: 0 });
+
+  // Refs
+  const imgRef = useRef(null);
   const canvasRef = useRef(null);
+  const modalImgRef = useRef(null);
+  const modalCanvasRef = useRef(null);
   const maskCanvasRef = useRef(null);
+
   const BACKEND_URL = process.env.BACKEND_URL;
   const [selectedTool, setSelectedTool] = useState("sam_rectangle");
   const [isShrunk, setIsShrunk] = useState(false);
 
-  useEffect(() => {
-    if (inputPrompt && !isShrunk) {
-      setIsShrunk(true);
-    }
-  }, [inputPrompt]);
+  // useEffect(() => {
+  //   if (inputPrompt && !isShrunk) {
+  //     setIsShrunk(true);
+  //   }
+  // }, [inputPrompt]);
 
   // Initialize color detection when image is uploaded
   useEffect(() => {
@@ -48,7 +67,7 @@ const BoundingBoxDraw = ({
       checkIfColorImage(uploadedImage).then((isColor) => {
         setIsColorImage(isColor);
         if (!isColor) {
-          setSelectedChannel("rgb"); // Reset to RGB for grayscale images
+          setSelectedChannel("rgb");
         }
       });
     }
@@ -68,34 +87,95 @@ const BoundingBoxDraw = ({
           setProcessedImageDataURL(dataURL);
           setProcessedImageFile(file);
           // Clear existing shapes when channel changes
-          setBoundingBoxes([]);
-          setFreehandPaths([]);
-          setClientSideMask(null);
-          setRoiImage(null);
-          setCurrentBoundingBox(null);
-          setFreehandPath([]);
+          clearAllShapes();
         }
       );
     } else if (!isColorImage && originalImageDataURL) {
-      // For grayscale images, use the original image
       setProcessedImageDataURL(originalImageDataURL);
       setProcessedImageFile(image);
     }
   }, [isColorImage, selectedChannel, originalImageDataURL]);
 
+  // Keyboard event handlers for modal
   useEffect(() => {
-    if (uploadedImage) {
-      drawImage();
-    }
-  }, [
-    uploadedImage,
-    processedImageDataURL,
-    currentBoundingBox,
-    boundingBoxes,
-    freehandPath,
-    freehandPaths,
-    clientSideMask,
-  ]);
+    const handleKeyDown = (e) => {
+      if (showExpandModal && e.code === "Space") {
+        e.preventDefault();
+        setSpacePressed(true);
+      }
+    };
+
+    const handleKeyUp = (e) => {
+      if (showExpandModal && e.code === "Space") {
+        e.preventDefault();
+        setSpacePressed(false);
+        setIsPanning(false);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("keyup", handleKeyUp);
+
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("keyup", handleKeyUp);
+    };
+  }, [showExpandModal]);
+
+  // Polyline enter key to complete
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (
+        e.key === "Enter" &&
+        selectedTool === "polyline" &&
+        currentPolylinePath.length >= 3
+      ) {
+        completePolyline();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [selectedTool, currentPolylinePath.length]);
+
+  // Clear shapes when tool changes
+  useEffect(() => {
+    const clearShapes = async () => {
+      // Wait for any pending operations to complete
+      if (loadingInpenting) {
+        return;
+      }
+
+      if (selectedTool === "rectangle" || selectedTool === "sam_rectangle") {
+        setFreehandPaths([]);
+        setFreehandPath([]);
+        setPolylinePaths([]);
+        setCurrentPolylinePath([]);
+      } else if (selectedTool === "freehand") {
+        setBoundingBoxes([]);
+        setCurrentBoundingBox(null);
+        setPolylinePaths([]);
+        setCurrentPolylinePath([]);
+      } else if (selectedTool === "polyline") {
+        setBoundingBoxes([]);
+        setCurrentBoundingBox(null);
+        setFreehandPaths([]);
+        setFreehandPath([]);
+      }
+
+      // Clear masks when switching tools
+      setClientSideMask(null);
+      setRoiImage(null);
+      setExistingMask(null);
+
+      setTimeout(() => {
+        redrawCanvas();
+        redrawModalCanvas();
+      }, 50);
+    };
+
+    clearShapes();
+  }, [selectedTool]);
 
   const checkIfColorImage = (dataURL) => {
     return new Promise((resolve) => {
@@ -180,131 +260,55 @@ const BoundingBoxDraw = ({
     });
   };
 
-  const drawImage = () => {
+  const initCanvas = () => {
+    if (!imgRef.current || !canvasRef.current) return;
+
+    const img = imgRef.current;
     const canvas = canvasRef.current;
-    if (!canvas) return;
 
-    const ctx = canvas.getContext("2d");
-    const img = new Image();
+    // Set internal dimensions to natural image size
+    canvas.width = img.naturalWidth;
+    canvas.height = img.naturalHeight;
 
-    // Use processed image if available (for channel selection), otherwise use original
-    const imageSource = processedImageDataURL || uploadedImage;
-    img.src = imageSource;
-
-    img.onload = () => {
-      canvas.width = img.naturalWidth;
-      canvas.height = img.naturalHeight;
-
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.drawImage(img, 0, 0, img.width, img.height);
-
-      // Draw all existing bounding boxes
-      boundingBoxes.forEach((box, index) => {
-        ctx.strokeStyle =
-          index === boundingBoxes.length - 1 ? "red" : "rgba(255, 0, 0, 0.5)";
-        ctx.lineWidth = 7;
-        ctx.strokeRect(
-          Math.min(box.x1, box.x2),
-          Math.min(box.y1, box.y2),
-          Math.abs(box.x2 - box.x1),
-          Math.abs(box.y2 - box.y1)
-        );
-      });
-
-      // Draw all existing freehand paths
-      freehandPaths.forEach((path, index) => {
-        ctx.strokeStyle =
-          index === freehandPaths.length - 1 ? "red" : "rgba(255, 0, 0, 0.5)";
-        ctx.lineWidth = 7;
-        ctx.lineJoin = "round";
-        ctx.lineCap = "round";
-        ctx.beginPath();
-
-        path.forEach((point, i) => {
-          if (i === 0) {
-            ctx.moveTo(point.x, point.y);
-          } else {
-            ctx.lineTo(point.x, point.y);
-          }
-        });
-
-        ctx.stroke();
-      });
-
-      // Draw current active shape
-      if (
-        selectedTool === "rectangle" ||
-        selectedTool === "sam_rectangle" ||
-        selectedTool === "circle"
-      ) {
-        if (currentBoundingBox) {
-          ctx.strokeStyle = "red";
-          ctx.lineWidth = 7;
-          ctx.strokeRect(
-            Math.min(currentBoundingBox.x1, currentBoundingBox.x2),
-            Math.min(currentBoundingBox.y1, currentBoundingBox.y2),
-            Math.abs(currentBoundingBox.x2 - currentBoundingBox.x1),
-            Math.abs(currentBoundingBox.y2 - currentBoundingBox.y1)
-          );
-        }
-      } else if (selectedTool === "freehand" && freehandPath.length > 0) {
-        ctx.strokeStyle = "red";
-        ctx.lineWidth = 7;
-        ctx.lineJoin = "round";
-        ctx.lineCap = "round";
-        ctx.beginPath();
-
-        freehandPath.forEach((point, i) => {
-          if (i === 0) {
-            ctx.moveTo(point.x, point.y);
-          } else {
-            ctx.lineTo(point.x, point.y);
-          }
-        });
-
-        ctx.stroke();
-      }
-    };
+    redrawCanvas();
   };
 
-  const generateClientSideMask = () => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
+  const initModalCanvas = () => {
+    if (!modalImgRef.current || !modalCanvasRef.current) return;
 
-    const maskCanvas = document.createElement("canvas");
-    maskCanvas.width = canvas.width;
-    maskCanvas.height = canvas.height;
-    const ctx = maskCanvas.getContext("2d");
+    const img = modalImgRef.current;
+    const canvas = modalCanvasRef.current;
 
-    // Create black background
-    ctx.fillStyle = "rgb(0, 0, 0)";
-    ctx.fillRect(0, 0, maskCanvas.width, maskCanvas.height);
+    // Set internal dimensions to natural image size
+    canvas.width = img.naturalWidth;
+    canvas.height = img.naturalHeight;
 
-    // Draw all selected regions in white
-    ctx.fillStyle = "rgb(255, 255, 255)";
+    redrawModalCanvas();
+  };
 
+  const drawShapes = (ctx) => {
     // Draw bounding boxes
-    boundingBoxes.forEach((box) => {
-      if (selectedTool === "rectangle" || selectedTool === "sam_rectangle") {
-        ctx.fillRect(
-          Math.min(box.x1, box.x2),
-          Math.min(box.y1, box.y2),
-          Math.abs(box.x2 - box.x1),
-          Math.abs(box.y2 - box.y1)
-        );
-      } else if (selectedTool === "circle") {
-        const radius = Math.sqrt(
-          Math.pow(box.x2 - box.x1, 2) + Math.pow(box.y2 - box.y1, 2)
-        );
-        ctx.beginPath();
-        ctx.arc(box.x1, box.y1, radius, 0, 2 * Math.PI);
-        ctx.fill();
-      }
+    boundingBoxes.forEach((box, index) => {
+      ctx.strokeStyle =
+        index === boundingBoxes.length - 1 ? "red" : "rgba(255, 0, 0, 0.5)";
+      ctx.lineWidth = 7;
+      ctx.strokeRect(
+        Math.min(box.x1, box.x2),
+        Math.min(box.y1, box.y2),
+        Math.abs(box.x2 - box.x1),
+        Math.abs(box.y2 - box.y1)
+      );
     });
 
     // Draw freehand paths
-    freehandPaths.forEach((path) => {
+    freehandPaths.forEach((path, index) => {
+      ctx.strokeStyle =
+        index === freehandPaths.length - 1 ? "red" : "rgba(255, 0, 0, 0.5)";
+      ctx.lineWidth = 7;
+      ctx.lineJoin = "round";
+      ctx.lineCap = "round";
       ctx.beginPath();
+
       path.forEach((point, i) => {
         if (i === 0) {
           ctx.moveTo(point.x, point.y);
@@ -312,37 +316,52 @@ const BoundingBoxDraw = ({
           ctx.lineTo(point.x, point.y);
         }
       });
-      ctx.fill();
+
+      ctx.stroke();
     });
 
-    // Add current active shape to mask
-    if (currentBoundingBox) {
-      if (selectedTool === "rectangle" || selectedTool === "sam_rectangle") {
-        ctx.fillRect(
-          Math.min(currentBoundingBox.x1, currentBoundingBox.x2),
-          Math.min(currentBoundingBox.y1, currentBoundingBox.y2),
-          Math.abs(currentBoundingBox.x2 - currentBoundingBox.x1),
-          Math.abs(currentBoundingBox.y2 - currentBoundingBox.y1)
-        );
-      } else if (selectedTool === "circle") {
-        const radius = Math.sqrt(
-          Math.pow(currentBoundingBox.x2 - currentBoundingBox.x1, 2) +
-            Math.pow(currentBoundingBox.y2 - currentBoundingBox.y1, 2)
-        );
-        ctx.beginPath();
-        ctx.arc(
-          currentBoundingBox.x1,
-          currentBoundingBox.y1,
-          radius,
-          0,
-          2 * Math.PI
-        );
-        ctx.fill();
+    // Draw polyline paths
+    polylinePaths.forEach((path, index) => {
+      ctx.strokeStyle =
+        index === polylinePaths.length - 1 ? "red" : "rgba(255, 0, 0, 0.5)";
+      ctx.lineWidth = 7;
+      ctx.lineJoin = "round";
+      ctx.lineCap = "round";
+      ctx.beginPath();
+
+      path.forEach((point, i) => {
+        if (i === 0) {
+          ctx.moveTo(point.x, point.y);
+        } else {
+          ctx.lineTo(point.x, point.y);
+        }
+      });
+
+      if (path.length > 2) {
+        ctx.closePath();
       }
+      ctx.stroke();
+    });
+
+    // Draw current shapes
+    if (currentBoundingBox) {
+      ctx.strokeStyle = "red";
+      ctx.lineWidth = 7;
+      ctx.strokeRect(
+        Math.min(currentBoundingBox.x1, currentBoundingBox.x2),
+        Math.min(currentBoundingBox.y1, currentBoundingBox.y2),
+        Math.abs(currentBoundingBox.x2 - currentBoundingBox.x1),
+        Math.abs(currentBoundingBox.y2 - currentBoundingBox.y1)
+      );
     }
 
     if (freehandPath.length > 0) {
+      ctx.strokeStyle = "red";
+      ctx.lineWidth = 7;
+      ctx.lineJoin = "round";
+      ctx.lineCap = "round";
       ctx.beginPath();
+
       freehandPath.forEach((point, i) => {
         if (i === 0) {
           ctx.moveTo(point.x, point.y);
@@ -350,55 +369,401 @@ const BoundingBoxDraw = ({
           ctx.lineTo(point.x, point.y);
         }
       });
-      ctx.fill();
+
+      ctx.stroke();
     }
 
-    const maskDataURL = maskCanvas.toDataURL("image/png");
-    setClientSideMask(maskDataURL);
-    generateClientSideRoi(maskDataURL);
-    return maskDataURL;
+    if (currentPolylinePath.length > 0) {
+      // Draw lines if there are 2 or more points
+      if (currentPolylinePath.length > 1) {
+        ctx.strokeStyle = "red";
+        ctx.lineWidth = 7;
+        ctx.lineJoin = "round";
+        ctx.lineCap = "round";
+        ctx.beginPath();
+
+        currentPolylinePath.forEach((point, i) => {
+          if (i === 0) {
+            ctx.moveTo(point.x, point.y);
+          } else {
+            ctx.lineTo(point.x, point.y);
+          }
+        });
+
+        ctx.stroke();
+      }
+
+      // Draw dots
+      currentPolylinePath.forEach((point) => {
+        ctx.fillStyle = "white";
+        ctx.strokeStyle = "rgba(0, 0, 0, 0.7)";
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(point.x, point.y, 8, 0, 2 * Math.PI);
+        ctx.fill();
+        ctx.stroke();
+      });
+    }
+  };
+
+  const redrawCanvas = () => {
+    if (!canvasRef.current) return;
+    const ctx = canvasRef.current.getContext("2d");
+    ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+    drawShapes(ctx);
+  };
+
+  const redrawModalCanvas = () => {
+    if (!modalCanvasRef.current) return;
+    const ctx = modalCanvasRef.current.getContext("2d");
+    ctx.clearRect(
+      0,
+      0,
+      modalCanvasRef.current.width,
+      modalCanvasRef.current.height
+    );
+    drawShapes(ctx);
+  };
+
+  useEffect(() => {
+    redrawCanvas();
+    redrawModalCanvas();
+  }, [
+    boundingBoxes,
+    freehandPaths,
+    polylinePaths,
+    currentBoundingBox,
+    freehandPath,
+    currentPolylinePath,
+  ]);
+
+  const getCanvasCoordinates = (e, canvas) => {
+    if (!canvas) return { x: 0, y: 0 };
+
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+
+    return {
+      x: (e.clientX - rect.left) * scaleX,
+      y: (e.clientY - rect.top) * scaleY,
+    };
+  };
+
+  const getModalCanvasCoordinates = (e) => {
+    if (!modalCanvasRef.current) return { x: 0, y: 0 };
+
+    const canvas = modalCanvasRef.current;
+    const rect = canvas.getBoundingClientRect();
+
+    // Adjust for modal scale and position
+    const x = (e.clientX - rect.left - modalPosition.x) / modalScale;
+    const y = (e.clientY - rect.top - modalPosition.y) / modalScale;
+
+    const scaleX = canvas.width / (rect.width / modalScale);
+    const scaleY = canvas.height / (rect.height / modalScale);
+
+    return {
+      x: x * scaleX,
+      y: y * scaleY,
+    };
+  };
+
+  // Main canvas event handlers
+  const handleMouseDown = (e) => {
+    if (!canvasRef.current || !imgRef.current) return;
+
+    const coords = getCanvasCoordinates(e, canvasRef.current);
+
+    if (selectedTool === "rectangle" || selectedTool === "sam_rectangle") {
+      setCurrentBoundingBox({
+        x1: coords.x,
+        y1: coords.y,
+        x2: coords.x,
+        y2: coords.y,
+      });
+      setIsDrawing(true);
+    } else if (selectedTool === "freehand") {
+      setFreehandPath([coords]);
+      setIsDrawing(true);
+    }
+  };
+
+  const handleMouseMove = (e) => {
+    if (!isDrawing || !canvasRef.current || !imgRef.current) return;
+
+    const coords = getCanvasCoordinates(e, canvasRef.current);
+
+    if (selectedTool === "rectangle" || selectedTool === "sam_rectangle") {
+      setCurrentBoundingBox((prev) => ({
+        ...prev,
+        x2: coords.x,
+        y2: coords.y,
+      }));
+    } else if (selectedTool === "freehand") {
+      setFreehandPath((prev) => [...prev, coords]);
+    }
+  };
+
+  const handleMouseUp = () => {
+    if (!isDrawing) return;
+    setIsDrawing(false);
+
+    if (selectedTool === "rectangle" || selectedTool === "sam_rectangle") {
+      if (currentBoundingBox) {
+        setBoundingBoxes((prev) => {
+          const newBox = { ...currentBoundingBox };
+          const updated = [...prev, newBox];
+          if (selectedTool === "rectangle") {
+            generateRectangleMask(updated);
+          } else {
+            generateSAMMask(newBox, prev.length > 0);
+          }
+          return updated;
+        });
+        setCurrentBoundingBox(null);
+      }
+    } else if (selectedTool === "freehand" && freehandPath.length > 0) {
+      setFreehandPaths((prev) => {
+        const newPath = [...freehandPath];
+        const updated = [...prev, newPath];
+        generateFreehandMask(updated);
+        return updated;
+      });
+      setFreehandPath([]);
+    }
+  };
+
+  const handleCanvasClick = (e) => {
+    if (selectedTool !== "polyline") return;
+
+    const coords = getCanvasCoordinates(e, canvasRef.current, imgRef.current);
+    const now = Date.now();
+    const dist = Math.hypot(
+      coords.x - lastClickPos.x,
+      coords.y - lastClickPos.y
+    );
+
+    if (
+      now - lastClickTime < 500 &&
+      dist < 10 &&
+      currentPolylinePath.length >= 2
+    ) {
+      completePolyline();
+    } else {
+      setCurrentPolylinePath((prev) => [...prev, coords]);
+    }
+
+    setLastClickTime(now);
+    setLastClickPos(coords);
+  };
+
+  const completePolyline = () => {
+    if (currentPolylinePath.length >= 3) {
+      setPolylinePaths((prev) => {
+        const newPath = [...currentPolylinePath];
+        const updated = [...prev, newPath];
+        generatePolylineMask(updated);
+        return updated;
+      });
+      setCurrentPolylinePath([]);
+    }
+  };
+
+  const generateSAMMask = async (box, useExisting = false) => {
+    setLoadingInpenting(true);
+
+    try {
+      const formData = new FormData();
+      const imageToSend = processedImageFile || image;
+      formData.append("file", imageToSend);
+      formData.append("x1", Math.round(box.x1));
+      formData.append("y1", Math.round(box.y1));
+      formData.append("x2", Math.round(box.x2));
+      formData.append("y2", Math.round(box.y2));
+      formData.append("use_existing_mask", useExisting);
+      if (useExisting && existingMask) {
+        formData.append("existing_mask", existingMask.mask_url);
+      }
+
+      const response = await axios.post(
+        `${BACKEND_URL}/api/generate-mask/`,
+        formData
+      );
+
+      setMaskImage(response.data.mask.mask_url);
+      setRoiImage(response.data.mask.roi_url);
+      set_inpenting_uniqe_code(response.data.mask.unique_code);
+      setExistingMask(response.data.mask);
+    } catch (error) {
+      console.error("Error generating SAM mask:", error);
+    } finally {
+      setLoadingInpenting(false);
+    }
+  };
+
+  const generateRectangleMask = async (boxes) => {
+    setLoadingInpenting(true);
+
+    try {
+      const maskDataURL = await createMaskFromRectangles(boxes);
+      setClientSideMask(maskDataURL);
+      await saveMaskToBackend(maskDataURL);
+      generateClientSideRoi(maskDataURL);
+    } catch (error) {
+      console.error("Error generating rectangle mask:", error);
+    } finally {
+      setLoadingInpenting(false);
+    }
+  };
+
+  const generateFreehandMask = async (paths) => {
+    setLoadingInpenting(true);
+
+    try {
+      const maskDataURL = await createMaskFromFreehand(paths);
+      setClientSideMask(maskDataURL);
+      await saveMaskToBackend(maskDataURL);
+      generateClientSideRoi(maskDataURL);
+    } catch (error) {
+      console.error("Error generating freehand mask:", error);
+    } finally {
+      setLoadingInpenting(false);
+    }
+  };
+
+  const generatePolylineMask = async (paths) => {
+    setLoadingInpenting(true);
+
+    try {
+      const maskDataURL = await createMaskFromPolylines(paths);
+      setClientSideMask(maskDataURL);
+      await saveMaskToBackend(maskDataURL);
+      generateClientSideRoi(maskDataURL);
+    } catch (error) {
+      console.error("Error generating polyline mask:", error);
+    } finally {
+      setLoadingInpenting(false);
+    }
+  };
+
+  const createMaskFromRectangles = async (boxes) => {
+    if (!imgRef.current || boxes.length === 0) return null;
+
+    const img = imgRef.current;
+    const maskCanvas = document.createElement("canvas");
+    maskCanvas.width = img.naturalWidth;
+    maskCanvas.height = img.naturalHeight;
+    const ctx = maskCanvas.getContext("2d");
+
+    ctx.fillStyle = "rgb(0, 0, 0)";
+    ctx.fillRect(0, 0, maskCanvas.width, maskCanvas.height);
+
+    ctx.fillStyle = "rgb(255, 255, 255)";
+    boxes.forEach((box) => {
+      ctx.fillRect(
+        Math.min(box.x1, box.x2),
+        Math.min(box.y1, box.y2),
+        Math.abs(box.x2 - box.x1),
+        Math.abs(box.y2 - box.y1)
+      );
+    });
+
+    return maskCanvas.toDataURL("image/png");
+  };
+
+  const createMaskFromFreehand = async (paths) => {
+    if (!imgRef.current || paths.length === 0) return null;
+
+    const img = imgRef.current;
+    const maskCanvas = document.createElement("canvas");
+    maskCanvas.width = img.naturalWidth;
+    maskCanvas.height = img.naturalHeight;
+    const ctx = maskCanvas.getContext("2d");
+
+    ctx.fillStyle = "rgb(0, 0, 0)";
+    ctx.fillRect(0, 0, maskCanvas.width, maskCanvas.height);
+
+    ctx.fillStyle = "rgb(255, 255, 255)";
+    paths.forEach((path) => {
+      if (path.length > 0) {
+        ctx.beginPath();
+        path.forEach((point, i) => {
+          if (i === 0) ctx.moveTo(point.x, point.y);
+          else ctx.lineTo(point.x, point.y);
+        });
+        ctx.closePath();
+        ctx.fill();
+      }
+    });
+
+    return maskCanvas.toDataURL("image/png");
+  };
+
+  const createMaskFromPolylines = async (paths) => {
+    if (!imgRef.current || paths.length === 0) return null;
+
+    const img = imgRef.current;
+    const maskCanvas = document.createElement("canvas");
+    maskCanvas.width = img.naturalWidth;
+    maskCanvas.height = img.naturalHeight;
+    const ctx = maskCanvas.getContext("2d");
+
+    ctx.fillStyle = "rgb(0, 0, 0)";
+    ctx.fillRect(0, 0, maskCanvas.width, maskCanvas.height);
+
+    ctx.fillStyle = "rgb(255, 255, 255)";
+    paths.forEach((path) => {
+      if (path.length > 2) {
+        ctx.beginPath();
+        path.forEach((point, i) => {
+          if (i === 0) ctx.moveTo(point.x, point.y);
+          else ctx.lineTo(point.x, point.y);
+        });
+        ctx.closePath();
+        ctx.fill();
+      }
+    });
+
+    return maskCanvas.toDataURL("image/png");
   };
 
   const generateClientSideRoi = (maskDataURL) => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
+    if (!imgRef.current) return;
 
+    const img = imgRef.current;
     const roiCanvas = document.createElement("canvas");
-    roiCanvas.width = canvas.width;
-    roiCanvas.height = canvas.height;
+    roiCanvas.width = img.naturalWidth;
+    roiCanvas.height = img.naturalHeight;
     const ctx = roiCanvas.getContext("2d");
 
-    // Draw original image
-    const img = new Image();
+    const tempImg = new Image();
     const imageSource = processedImageDataURL || uploadedImage;
-    img.src = imageSource;
-    ctx.drawImage(img, 0, 0);
+    tempImg.src = imageSource;
+    tempImg.onload = () => {
+      ctx.drawImage(tempImg, 0, 0);
 
-    // Draw mask overlay
-    const maskImg = new Image();
-    maskImg.src = maskDataURL;
-    ctx.globalAlpha = 0.5;
-    ctx.drawImage(maskImg, 0, 0);
-    ctx.globalAlpha = 1.0;
-
-    setRoiImage(roiCanvas.toDataURL("image/png"));
+      const maskImg = new Image();
+      maskImg.src = maskDataURL;
+      maskImg.onload = () => {
+        ctx.globalAlpha = 0.5;
+        ctx.drawImage(maskImg, 0, 0);
+        ctx.globalAlpha = 1.0;
+        setRoiImage(roiCanvas.toDataURL("image/png"));
+      };
+    };
   };
 
   const saveMaskToBackend = async (maskDataURL) => {
     try {
-      // Convert mask data URL to blob
       const response = await fetch(maskDataURL);
       const blob = await response.blob();
 
-      // Create FormData
       const formData = new FormData();
-
-      // Use processed image file if available (for channel selection), otherwise use original
       const imageToSend = processedImageFile || image;
-      formData.append("file", imageToSend); // Send the currently displayed channel image
-      formData.append("mask", blob, "mask.png"); // Generated mask
+      formData.append("file", imageToSend);
+      formData.append("mask", blob, "mask.png");
 
-      // Send to backend
       const result = await axios.post(
         `${BACKEND_URL}/api/save-mask/`,
         formData,
@@ -409,7 +774,6 @@ const BoundingBoxDraw = ({
         }
       );
 
-      // Update state with the saved mask URL from backend
       setMaskImage(result.data.mask_url);
       setRoiImage(result.data.roi_url);
       set_inpenting_uniqe_code(result.data.unique_code);
@@ -421,182 +785,173 @@ const BoundingBoxDraw = ({
     }
   };
 
-  const handleMouseDown = (e) => {
-    if (!canvasRef.current) return;
-
-    const rect = canvasRef.current.getBoundingClientRect();
-    const scaleX = canvasRef.current.width / rect.width;
-    const scaleY = canvasRef.current.height / rect.height;
-
-    const startX = (e.clientX - rect.left) * scaleX;
-    const startY = (e.clientY - rect.top) * scaleY;
-
-    if (
-      selectedTool === "rectangle" ||
-      selectedTool === "sam_rectangle" ||
-      selectedTool === "circle"
-    ) {
-      setCurrentBoundingBox({ x1: startX, y1: startY, x2: startX, y2: startY });
-    } else if (selectedTool === "freehand") {
-      setFreehandPath([{ x: startX, y: startY }]);
+  // Modal event handlers
+  const handleModalMouseDown = (e) => {
+    if (spacePressed || e.button === 2) {
+      e.preventDefault();
+      setIsPanning(true);
+      setPanStart({
+        x: e.clientX - modalPosition.x,
+        y: e.clientY - modalPosition.y,
+      });
+      return;
     }
 
-    setIsDrawing(true);
+    if (!modalCanvasRef.current || !modalImgRef.current) return;
+
+    const coords = getModalCanvasCoordinates(e);
+
+    if (selectedTool === "rectangle" || selectedTool === "sam_rectangle") {
+      setCurrentBoundingBox({
+        x1: coords.x,
+        y1: coords.y,
+        x2: coords.x,
+        y2: coords.y,
+      });
+      setIsDrawing(true);
+    } else if (selectedTool === "freehand") {
+      setFreehandPath([coords]);
+      setIsDrawing(true);
+    }
   };
 
-  const handleMouseMove = (e) => {
-    if (!isDrawing || !canvasRef.current) return;
+  const handleModalMouseMove = (e) => {
+    if (isPanning) {
+      setModalPosition({
+        x: e.clientX - panStart.x,
+        y: e.clientY - panStart.y,
+      });
+      return;
+    }
 
-    const rect = canvasRef.current.getBoundingClientRect();
-    const scaleX = canvasRef.current.width / rect.width;
-    const scaleY = canvasRef.current.height / rect.height;
+    if (!isDrawing || !modalCanvasRef.current || !modalImgRef.current) return;
 
-    const currentX = (e.clientX - rect.left) * scaleX;
-    const currentY = (e.clientY - rect.top) * scaleY;
+    const coords = getModalCanvasCoordinates(e);
 
-    if (
-      selectedTool === "rectangle" ||
-      selectedTool === "sam_rectangle" ||
-      selectedTool === "circle"
-    ) {
+    if (selectedTool === "rectangle" || selectedTool === "sam_rectangle") {
       setCurrentBoundingBox((prev) => ({
         ...prev,
-        x2: currentX,
-        y2: currentY,
+        x2: coords.x,
+        y2: coords.y,
       }));
     } else if (selectedTool === "freehand") {
-      setFreehandPath((prev) => [...prev, { x: currentX, y: currentY }]);
+      setFreehandPath((prev) => [...prev, coords]);
     }
   };
 
-  const handleMouseUp = () => {
+  const handleModalMouseUp = () => {
+    setIsPanning(false);
+
     if (!isDrawing) return;
     setIsDrawing(false);
 
-    if (
-      selectedTool === "rectangle" ||
-      selectedTool === "sam_rectangle" ||
-      selectedTool === "circle"
-    ) {
-      if (!currentBoundingBox) return;
-
-      setBoundingBoxes((prev) => [...prev, currentBoundingBox]);
-
-      if (selectedTool === "sam_rectangle" && maskImage) {
-        setNewBoundingBox(currentBoundingBox);
-        setShowPopup(true);
-      } else {
-        generateMask(false);
+    if (selectedTool === "rectangle" || selectedTool === "sam_rectangle") {
+      if (currentBoundingBox) {
+        setBoundingBoxes((prev) => {
+          const newBox = { ...currentBoundingBox };
+          const updated = [...prev, newBox];
+          if (selectedTool === "rectangle") {
+            generateRectangleMask(updated);
+          } else {
+            generateSAMMask(newBox, prev.length > 0);
+          }
+          return updated;
+        });
+        setCurrentBoundingBox(null);
       }
-
-      setCurrentBoundingBox(null);
     } else if (selectedTool === "freehand" && freehandPath.length > 0) {
-      setFreehandPaths((prev) => [...prev, freehandPath]);
-      generateMask(false);
+      setFreehandPaths((prev) => {
+        const newPath = [...freehandPath];
+        const updated = [...prev, newPath];
+        generateFreehandMask(updated);
+        return updated;
+      });
       setFreehandPath([]);
     }
   };
 
-  const generateMask = async (useExistingMask) => {
-    if (selectedTool === "sam_rectangle") {
-      // SAM rectangle logic
-      const formData = new FormData();
+  const handleModalCanvasClick = (e) => {
+    if (selectedTool !== "polyline" || spacePressed) return;
 
-      // Use processed image file if available (for channel selection), otherwise use original
-      const imageToSend = processedImageFile || image;
-      formData.append("file", imageToSend);
+    const coords = getModalCanvasCoordinates(e);
+    const now = Date.now();
+    const dist = Math.hypot(
+      coords.x - lastClickPos.x,
+      coords.y - lastClickPos.y
+    );
 
-      formData.append(
-        "x1",
-        Math.round(newBoundingBox ? newBoundingBox.x1 : currentBoundingBox.x1)
-      );
-      formData.append(
-        "y1",
-        Math.round(newBoundingBox ? newBoundingBox.y1 : currentBoundingBox.y1)
-      );
-      formData.append(
-        "x2",
-        Math.round(newBoundingBox ? newBoundingBox.x2 : currentBoundingBox.x2)
-      );
-      formData.append(
-        "y2",
-        Math.round(newBoundingBox ? newBoundingBox.y2 : currentBoundingBox.y2)
-      );
-      formData.append("use_existing_mask", useExistingMask);
-      formData.append("existing_mask", maskImage);
-
-      setLoadingInpenting(true);
-      try {
-        const response = await axios.post(
-          `${BACKEND_URL}/api/generate-mask/`,
-          formData
-        );
-        setMaskImage(response.data.mask.mask_url);
-        setRoiImage(response.data.mask.roi_url);
-        set_inpenting_uniqe_code(response.data.mask.unique_code);
-        if (!useExistingMask) {
-          setExistingMask(response.data.mask);
-        }
-      } catch (error) {
-        console.error("Error generating mask:", error);
-      }
-      setLoadingInpenting(false);
+    if (
+      now - lastClickTime < 500 &&
+      dist < 10 &&
+      currentPolylinePath.length >= 2
+    ) {
+      completePolyline();
     } else {
-      // For other tools (rectangle, circle, freehand)
-      setLoadingInpenting(true);
-      try {
-        const maskDataURL = generateClientSideMask();
-        await saveMaskToBackend(maskDataURL);
-      } catch (error) {
-        console.error("Error saving mask:", error);
-      }
-      setLoadingInpenting(false);
+      setCurrentPolylinePath((prev) => [...prev, coords]);
     }
+
+    setLastClickTime(now);
+    setLastClickPos(coords);
+  };
+
+  const handleModalWheel = (e) => {
+    e.preventDefault();
+    const delta = e.deltaY > 0 ? 0.9 : 1.1;
+    setModalScale((prev) => Math.max(0.1, Math.min(5, prev * delta)));
+  };
+
+  const resetModalView = () => {
+    setModalScale(1);
+    setModalPosition({ x: 0, y: 0 });
+  };
+
+  const openExpandModal = () => {
+    setShowExpandModal(true);
+  };
+
+  const clearCurrentPolyline = () => {
+    setCurrentPolylinePath([]);
+    redrawCanvas();
+    redrawModalCanvas();
+  };
+
+  const closeExpandModal = () => {
+    resetModalView();
+    setShowExpandModal(false);
   };
 
   const clearAllShapes = () => {
     setBoundingBoxes([]);
     setFreehandPaths([]);
+    setPolylinePaths([]);
     setClientSideMask(null);
     setRoiImage(null);
     setCurrentBoundingBox(null);
     setFreehandPath([]);
-  };
+    setCurrentPolylinePath([]);
+    setExistingMask(null);
 
-  const downloadImage = async (imageSrc, filename) => {
-    try {
-      const response = await fetch(imageSrc);
-      const blob = await response.blob();
-      const blobUrl = URL.createObjectURL(blob);
-
-      const link = document.createElement("a");
-      link.href = blobUrl;
-      link.download = filename;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-
-      URL.revokeObjectURL(blobUrl);
-    } catch (error) {
-      console.error("Error downloading the image:", error);
-    }
+    redrawCanvas();
+    redrawModalCanvas();
   };
 
   return (
     <>
-      <SelectTool
-        selectedTool={selectedTool}
-        setSelectedTool={setSelectedTool}
-        clearAllShapes={clearAllShapes}
-        isShrunk={isShrunk}
-        setIsShrunk={setIsShrunk}
-      />
-      <section
-        className={`transition-all duration-1000 ease-in-out ${
-          isShrunk ? "w-[400px] ml-4" : "w-full"
-        }  max-w-10xl mb-0 border-none h-auto py-0 sm:px-0`}
-      >
-        <div className="mb-8 mx-0 sm:ml-[7vw] py-6 sm:py-0 border-none rounded-2xl shadow-lg">
+      <div className="p-4 ml-28 dark:bg-[#1a1a1a] bg-white rounded-lg shadow-lg">
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-xl font-bold dark:text-white text-gray-800">
+            Composer
+          </h2>
+          <SelectTool
+            selectedTool={selectedTool}
+            setSelectedTool={setSelectedTool}
+            clearAllShapes={clearAllShapes}
+            isShrunk={isShrunk}
+            setIsShrunk={setIsShrunk}
+          />
+        </div>
+
+        <div className="mb-8 mx-0 py-6 sm:py-0 border-none rounded-2xl shadow-lg">
           <div className="flex items-center justify-between space-x-8">
             <div className="flex flex-col w-full gap-4">
               <div
@@ -606,44 +961,77 @@ const BoundingBoxDraw = ({
                     : "grid-cols-2"
                 } gap-8 w-full`}
               >
-                {/* Image Canvas */}
+                {/* Main Image with Canvas Overlay - EXACT original structure */}
                 <div className="relative">
                   <div
                     className={`relative mt-4 ${
                       isShrunk ? "p-1" : "p-2"
                     } bg-white/10 rounded-lg shadow-xl`}
                   >
-                    <canvas
-                      ref={canvasRef}
-                      className="w-full h-auto rounded-lg cursor-crosshair"
-                      onMouseDown={handleMouseDown}
-                      onMouseMove={handleMouseMove}
-                      onMouseUp={handleMouseUp}
-                    />
+                    <div className="absolute top-2 right-2 z-10">
+                      <button
+                        onClick={openExpandModal}
+                        className="bg-black bg-opacity-50 text-white p-1 rounded-full hover:bg-opacity-70 flex items-center gap-3"
+                      >
+                        <div className="relative group">
+                          <AiOutlineExpand size={20} />
+                          <span className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 text-xs bg-gray-800 text-white rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+                            Expand View
+                          </span>
+                        </div>
+                      </button>
+                    </div>
+
+                    <div className="relative">
+                      <img
+                        ref={imgRef}
+                        src={processedImageDataURL || uploadedImage}
+                        alt="Uploaded"
+                        className="w-full h-auto rounded-lg"
+                        onLoad={initCanvas}
+                      />
+                      <canvas
+                        ref={canvasRef}
+                        className="absolute top-0 left-0 w-full h-full cursor-crosshair rounded-lg"
+                        onMouseDown={handleMouseDown}
+                        onMouseMove={handleMouseMove}
+                        onMouseUp={handleMouseUp}
+                        onClick={handleCanvasClick}
+                      />
+                    </div>
+
+                    {/* Polyline buttons */}
+                    {selectedTool === "polyline" &&
+                      currentPolylinePath.length > 0 && (
+                        <div className="absolute top-2 left-2 flex gap-2 z-10">
+                          {currentPolylinePath.length >= 3 && (
+                            <button
+                              onClick={completePolyline}
+                              className="bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded text-sm font-medium transition-colors"
+                            >
+                              Complete
+                            </button>
+                          )}
+                          <button
+                            onClick={clearCurrentPolyline}
+                            className="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-sm font-medium transition-colors"
+                          >
+                            Clear
+                          </button>
+                        </div>
+                      )}
+
                     {loadingInpenting && (
-                      <div className="absolute inset-0 flex items-center justify-center bg-black/40 rounded-lg">
+                      <div className="absolute inset-0 flex items-center justify-center bg-black/40 rounded-lg z-20">
                         <div className="w-12 h-12 border-4 border-white border-t-transparent rounded-full animate-spin"></div>
                       </div>
                     )}
                   </div>
                 </div>
 
-                {/* Processed Mask Image - Only show when not shrunk */}
+                {/* Processed Mask Image - EXACT same structure as original */}
                 {(maskImage || clientSideMask) && (
-                  <div
-                    className="relative w-full"
-                    onClick={() => {
-                      const parts = image.name.split(".");
-                      const fileName = `${parts.slice(
-                        0,
-                        -1
-                      )}.jpeg_msk_0.${parts.at(-1)}`;
-                      downloadImage(
-                        clientSideMask || `${BACKEND_URL}/${maskImage}`,
-                        fileName
-                      );
-                    }}
-                  >
+                  <div className="relative w-full cursor-pointer">
                     <div
                       className={`relative mt-6 ${
                         inputPrompt ? "p-1" : "p-2"
@@ -652,18 +1040,16 @@ const BoundingBoxDraw = ({
                       <img
                         src={clientSideMask || `${BACKEND_URL}/${maskImage}`}
                         alt="Mask"
-                        className="w-full h-auto rounded-lg cursor-pointer"
+                        className="w-full h-auto rounded-lg"
                       />
                     </div>
                   </div>
                 )}
               </div>
 
-              {/* Color Channel Selection - Moved below the grid */}
+              {/* Color Channel Selection - Better visual styling but same structure */}
               {isColorImage && (
-                <div
-                  className={`my-4 p-4 rounded-xl bg-gradient-to-br from-indigo-50 to-blue-50 dark:from-neutral-900/30 dark:to-neutral-900/30 border border-indigo-100 dark:border-indigo-800/50 shadow-sm transition-all duration-300 hover:shadow-md`}
-                >
+                <div className="my-4 p-4 rounded-xl bg-gradient-to-br from-indigo-50 to-blue-50 dark:from-neutral-900/30 dark:to-neutral-900/30 border border-indigo-100 dark:border-indigo-800/50 shadow-sm transition-all duration-300 hover:shadow-md">
                   <div className="flex flex-col sm:flex-row items-start gap-3">
                     <div className="p-2 rounded-lg bg-indigo-100 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-300">
                       <svg
@@ -730,35 +1116,152 @@ const BoundingBoxDraw = ({
             </div>
           </div>
         </div>
+      </div>
 
-        {showPopup && (
-          <div className="fixed inset-0 flex items-center justify-center bg-black/50">
-            <div className="bg-neutral-900 p-4 rounded-lg shadow-lg">
-              <p className="text-lg font-bold mb-4">
-                Choose Mask Generation Method
-              </p>
-              <button
-                className="bg-red-500 text-white px-4 py-2 rounded-md mr-4"
-                onClick={() => {
-                  setShowPopup(false);
-                  generateMask(false);
+      {/* Expand View Modal */}
+      <Modal
+        isOpen={showExpandModal}
+        onRequestClose={closeExpandModal}
+        className="bg-neutral-900 w-3/4 mx-auto mt-5 h-[95vh]"
+        overlayClassName="modal-overlay"
+      >
+        <div className="relative flex flex-col items-center max-h-[94vh]">
+          <div className="flex border-b w-full my-2 ">
+            <h2 className="text-lg mx-auto text-gray-300 font-bold mb-2 dark:text-white">
+              Expand View - Draw ROI
+            </h2>
+
+            {/* Polyline buttons */}
+            {selectedTool === "polyline" && currentPolylinePath.length > 0 && (
+              <div className="absolute left-4 flex gap-2">
+                {currentPolylinePath.length >= 3 && (
+                  <button
+                    onClick={completePolyline}
+                    className="bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded text-sm font-medium transition-colors"
+                  >
+                    Complete
+                  </button>
+                )}
+                <button
+                  onClick={clearCurrentPolyline}
+                  className="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-sm font-medium transition-colors"
+                >
+                  Clear
+                </button>
+              </div>
+            )}
+
+            <button
+              onClick={closeExpandModal}
+              className="absolute right-2 text-gray-300 hover:text-white font-extrabold text-xl hover:rotate-45 transition-transform duration-200"
+            >
+              ✕
+            </button>
+          </div>
+
+          <div
+            className="relative border-2 border-blue-400 rounded-lg overflow-hidden"
+            onWheel={handleModalWheel}
+            onContextMenu={(e) => e.preventDefault()}
+          >
+            <div className="relative">
+              <img
+                ref={modalImgRef}
+                src={processedImageDataURL || uploadedImage}
+                alt="Expanded view"
+                className="max-h-[85vh] max-w-full object-contain transition-transform duration-200"
+                onLoad={initModalCanvas}
+                style={{
+                  transform: `translate(${modalPosition.x}px, ${modalPosition.y}px) scale(${modalScale})`,
+                  cursor: "default",
                 }}
+                onMouseDown={handleModalMouseDown}
+                onMouseMove={handleModalMouseMove}
+                onMouseUp={handleModalMouseUp}
+                onMouseLeave={handleModalMouseUp}
+                draggable={false}
+              />
+              <canvas
+                ref={modalCanvasRef}
+                className="absolute top-0 left-0 w-full h-full cursor-crosshair"
+                style={{
+                  transform: `translate(${modalPosition.x}px, ${modalPosition.y}px) scale(${modalScale})`,
+                  transformOrigin: "center center",
+                  cursor: "crosshair",
+                }}
+                onMouseDown={handleModalMouseDown}
+                onMouseMove={handleModalMouseMove}
+                onMouseUp={handleModalMouseUp}
+                onMouseLeave={handleModalMouseUp}
+                onClick={handleModalCanvasClick}
+              />
+            </div>
+
+            {/* Zoom controls */}
+            <div className="absolute bottom-4 right-4 bg-white dark:bg-neutral-800 p-1 rounded-full shadow-sm border border-neutral-200 dark:border-neutral-700 flex flex-col space-y-1 z-10">
+              <button
+                onClick={() => setModalScale((prev) => Math.min(prev * 1.2, 5))}
+                className="p-1 rounded-full text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-200 transition-all"
+                aria-label="Zoom in"
               >
-                Generate New Mask
+                <svg
+                  className="w-4 h-4"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M12 6v6m0 0v6m0-6h6m-6 0H6"
+                  />
+                </svg>
               </button>
               <button
-                className="bg-green-500 text-white px-4 py-2 rounded-md"
-                onClick={() => {
-                  setShowPopup(false);
-                  generateMask(true);
-                }}
+                onClick={() =>
+                  setModalScale((prev) => Math.max(prev * 0.8, 0.1))
+                }
+                className="p-1 rounded-full text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-200 transition-all"
+                aria-label="Zoom out"
               >
-                Use Existing Mask
+                <svg
+                  className="w-4 h-4"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M20 12H4"
+                  />
+                </svg>
+              </button>
+              <button
+                onClick={resetModalView}
+                className="p-1 rounded-full text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-200 transition-all"
+                aria-label="Reset zoom"
+              >
+                <svg
+                  className="w-4 h-4"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"
+                  />
+                </svg>
               </button>
             </div>
           </div>
-        )}
-      </section>
+        </div>
+      </Modal>
     </>
   );
 };
