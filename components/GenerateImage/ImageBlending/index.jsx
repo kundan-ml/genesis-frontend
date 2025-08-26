@@ -152,11 +152,9 @@ const ImageBlending = ({
       setImage2File(file);
       return;
     }
-
     const reader = new FileReader();
     reader.onload = async (event) => {
       const dataURL = event.target.result;
-
       if (isSecondImage) {
         // Clear ALL Image 2 related data
         setOriginalImage2DataURL(dataURL);
@@ -166,21 +164,18 @@ const ImageBlending = ({
         setPolylinePath2([]);
         setPolylineMask2(null);
         setIsPolylineComplete2(false);
-
-        // FIXED: Clear overlay-related state for Image 2
+        // Clear overlay-related state for Image 2
         setOverlayResult(null);
         setShowOverlayApproval(false);
         setShowOverlayOnImage2(false);
         setIsGeneratingOverlay(false);
-
-        // FIXED: Always clear modal state for Image 2 (regardless if modal is open)
+        // Always clear modal state for Image 2 (regardless if modal is open)
         setModalRoi(null);
         setModalFreehandPath([]);
         setModalPolylinePath([]);
         setModalPolylineComplete(false);
         setGeneratedMask(null);
         setTempRoi((prev) => ({ ...prev, roi2: null }));
-
         // Clear modal canvas if it exists
         if (modalCanvasRef.current) {
           const ctx = modalCanvasRef.current.getContext("2d");
@@ -195,14 +190,12 @@ const ImageBlending = ({
         const isColor = await checkIfColorImage(dataURL);
         setIsColorImage2(isColor);
         setSelectedChannel("rgb");
-
         if (!isColor) {
           setUploadedImage2(dataURL);
           setProcessedImage2File(file);
         } else {
           setUploadedImage2(dataURL);
         }
-
         // Clear canvas immediately
         if (canvasRef2.current) {
           const ctx = canvasRef2.current.getContext("2d");
@@ -222,7 +215,6 @@ const ImageBlending = ({
         setPolylinePath1([]);
         setPolylineMask1(null);
         setIsPolylineComplete1(false);
-
         // FIXED: Always clear modal state for Image 1 (regardless if modal is open)
         setModalRoi(null);
         setModalFreehandPath([]);
@@ -241,18 +233,15 @@ const ImageBlending = ({
             modalCanvasRef.current.height
           );
         }
-
         const isColor = await checkIfColorImage(dataURL);
         setIsColorImage1(isColor);
         setSelectedChannel1("rgb");
-
         if (!isColor) {
           setUploadedImage1(dataURL);
           setProcessedImage1File(file);
         } else {
           setUploadedImage1(dataURL);
         }
-
         // Clear canvas immediately
         if (canvasRef1.current) {
           const ctx = canvasRef1.current.getContext("2d");
@@ -265,15 +254,12 @@ const ImageBlending = ({
         }
       }
     };
-
     reader.readAsDataURL(file);
-
     if (isSecondImage) {
       setImage2File(file);
     } else {
       setImage1File(file);
     }
-
     e.target.value = null;
   };
 
@@ -298,7 +284,6 @@ const ImageBlending = ({
         setPolylinePath1([]);
         setPolylineMask1(null);
         setIsPolylineComplete1(false);
-
         // FIXED: Always clear modal state for Image 1 (regardless if modal is open)
         setModalRoi(null);
         setModalFreehandPath([]);
@@ -306,7 +291,6 @@ const ImageBlending = ({
         setModalPolylineComplete(false);
         setGeneratedMask(null);
         setTempRoi((prev) => ({ ...prev, roi1: null }));
-
         // Clear modal canvas if it exists
         if (modalCanvasRef.current) {
           const ctx = modalCanvasRef.current.getContext("2d");
@@ -317,11 +301,9 @@ const ImageBlending = ({
             modalCanvasRef.current.height
           );
         }
-
         if (!isColor) {
           setProcessedImage1File(image1File);
         }
-
         // Clear canvas
         if (canvasRef1.current) {
           const ctx = canvasRef1.current.getContext("2d");
@@ -350,10 +332,8 @@ const ImageBlending = ({
         setPolylinePath2([]);
         setPolylineMask2(null);
         setIsPolylineComplete2(false);
-
         // FIXED: Clear overlay data for Image 2
         clearOverlayData();
-
         // FIXED: Always clear modal state for Image 2 (regardless if modal is open)
         setModalRoi(null);
         setModalFreehandPath([]);
@@ -361,7 +341,6 @@ const ImageBlending = ({
         setModalPolylineComplete(false);
         setGeneratedMask(null);
         setTempRoi((prev) => ({ ...prev, roi2: null }));
-
         // Clear modal canvas if it exists
         if (modalCanvasRef.current) {
           const ctx = modalCanvasRef.current.getContext("2d");
@@ -372,11 +351,9 @@ const ImageBlending = ({
             modalCanvasRef.current.height
           );
         }
-
         if (!isColor) {
           setProcessedImage2File(image2File);
         }
-
         // Clear canvas
         if (canvasRef2.current) {
           const ctx = canvasRef2.current.getContext("2d");
@@ -395,42 +372,33 @@ const ImageBlending = ({
   // NEW: FUNCTION TO CREATE COLOR IMAGE FROM CHANNELS
   const createColorImage = async () => {
     if (!blendedResult || !originalImage1DataURL || !selectedChannel1) return;
-
     setIsGeneratingColor(true);
-
     try {
       // Load images
       const [originalImg, blendedImg] = await Promise.all([
         loadImage(originalImage1DataURL),
         loadImage(`${BACKEND_URL}/${blendedResult}`),
       ]);
-
       // Create canvas for processing
       const canvas = document.createElement("canvas");
       canvas.width = originalImg.width;
       canvas.height = originalImg.height;
       const ctx = canvas.getContext("2d");
-
       // Get original image data
       ctx.drawImage(originalImg, 0, 0);
       const originalData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-
       // Get blended image data
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.drawImage(blendedImg, 0, 0);
       const blendedData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-
       // Create new image data by combining channels
       const newData = new ImageData(canvas.width, canvas.height);
-
       for (let i = 0; i < originalData.data.length; i += 4) {
         const r = originalData.data[i];
         const g = originalData.data[i + 1];
         const b = originalData.data[i + 2];
-
         // Get the processed channel value from the blended image
         const processedValue = blendedData.data[i];
-
         // Replace only the selected channel
         if (selectedChannel1 === "red") {
           newData.data[i] = processedValue; // Use processed red channel
@@ -452,10 +420,8 @@ const ImageBlending = ({
         }
         newData.data[i + 3] = 255; // Alpha channel
       }
-
       // Draw the new image data
       ctx.putImageData(newData, 0, 0);
-
       // Convert to data URL
       const colorDataURL = canvas.toDataURL("image/png");
       setColorBlendedResult(colorDataURL);
@@ -533,6 +499,44 @@ const ImageBlending = ({
     setIsDefault(uploadedImage2);
   }, [setUploadedImage2]);
 
+  useEffect(() => {
+    const handleKeyPress = (e) => {
+      // Complete polyline in modal when Enter is pressed
+      if (expandedForROI && drawingTool === "polyline" && e.key === "Enter") {
+        e.preventDefault();
+        if (modalPolylinePath.length > 2 && !modalPolylineComplete) {
+          completePolyline(null, true); // true indicates modal
+        }
+      }
+      // Complete polyline in main view when Enter is pressed
+      else if (
+        !expandedForROI &&
+        drawingTool === "polyline" &&
+        e.key === "Enter"
+      ) {
+        e.preventDefault();
+        if (polylinePath1.length > 2 && !isPolylineComplete1) {
+          completePolyline(1, false);
+        } else if (polylinePath2.length > 2 && !isPolylineComplete2) {
+          completePolyline(2, false);
+        }
+      }
+    };
+    window.addEventListener("keydown", handleKeyPress);
+    return () => {
+      window.removeEventListener("keydown", handleKeyPress);
+    };
+  }, [
+    expandedForROI,
+    drawingTool,
+    modalPolylinePath,
+    modalPolylineComplete,
+    polylinePath1,
+    isPolylineComplete1,
+    polylinePath2,
+    isPolylineComplete2,
+  ]);
+
   // Initialize canvas with ROI
   const initCanvas = (imgRef, canvasRef, imageNum) => {
     const canvas = canvasRef.current;
@@ -540,7 +544,6 @@ const ImageBlending = ({
     if (img && canvas) {
       canvas.width = img.offsetWidth;
       canvas.height = img.offsetHeight;
-
       // Store natural dimensions
       if (imageNum === 1) {
         setImage1Dimensions({
@@ -557,25 +560,21 @@ const ImageBlending = ({
           displayHeight: img.offsetHeight,
         });
       }
-
       // Draw existing ROI if available
       const roi = imageNum === 1 ? roi1 : roi2;
       const freehandPath = imageNum === 1 ? freehandPath1 : freehandPath2;
       const polylinePath = imageNum === 1 ? polylinePath1 : polylinePath2;
       const isPolylineComplete =
         imageNum === 1 ? isPolylineComplete1 : isPolylineComplete2;
-
       if (roi && img.naturalWidth > 0 && drawingTool === "rectangle") {
         const scaleX = img.offsetWidth / img.naturalWidth;
         const scaleY = img.offsetHeight / img.naturalHeight;
-
         const displayRoi = {
           x: roi.x * scaleX,
           y: roi.y * scaleY,
           width: roi.width * scaleX,
           height: roi.height * scaleY,
         };
-
         drawRoiOnCanvas(canvas, displayRoi);
       } else if (
         freehandPath.length > 0 &&
@@ -863,6 +862,7 @@ const ImageBlending = ({
   };
 
   const handleModalMouseDown = (e) => {
+    if (e.button !== 0) return;
     e.stopPropagation();
     e.preventDefault();
     const canvas = modalCanvasRef.current;
@@ -1126,21 +1126,22 @@ const ImageBlending = ({
     if (!canvas) return { x: 0, y: 0 };
 
     const rect = canvas.getBoundingClientRect();
-    const rawX = e.clientX - rect.left;
-    const rawY = e.clientY - rect.top;
+    const x = (e.clientX - rect.left) / modalScale;
+    const y = (e.clientY - rect.top) / modalScale;
+
+    const scaleX = canvas.width / (rect.width / modalScale);
+    const scaleY = canvas.height / (rect.height / modalScale);
 
     return {
-      x: (rawX - roiModalPosition.x) / roiModalScale,
-      y: (rawY - roiModalPosition.y) / roiModalScale,
+      x: x * scaleX,
+      y: y * scaleY,
     };
   };
 
   // Add this new helper function
   const detectModalRectInteraction = (mouseX, mouseY, roi) => {
     if (!roi) return null;
-
     const handleSize = 8;
-
     // Check corners for resize handles
     if (
       Math.abs(mouseX - (roi.x + roi.width)) < handleSize &&
@@ -1654,16 +1655,14 @@ const ImageBlending = ({
     const scaleX = canvas.width / img.naturalWidth;
     const scaleY = canvas.height / img.naturalHeight;
     if (path.length === 1) {
-      // Draw single point/dot - SMALLER SIZE
       ctx.fillStyle = color;
       const displayX = path[0].x * scaleX;
       const displayY = path[0].y * scaleY;
       ctx.beginPath();
-      ctx.arc(displayX, displayY, 3, 0, 2 * Math.PI); // REDUCED from 6 to 3
+      ctx.arc(displayX, displayY, 3, 0, 2 * Math.PI);
       ctx.fill();
-      // Add a white border to make it more visible - SMALLER BORDER
       ctx.strokeStyle = "#ffffff";
-      ctx.lineWidth = 1; //  REDUCED from 2 to 1
+      ctx.lineWidth = 1;
       ctx.stroke();
       return;
     }
@@ -1687,7 +1686,7 @@ const ImageBlending = ({
     // Close the path if complete
     if (isComplete && path.length > 2) {
       ctx.closePath();
-      ctx.fillStyle = color + "20"; // Semi-transparent fill
+      ctx.fillStyle = color + "20";
       ctx.fill();
     }
     ctx.stroke();
@@ -1714,20 +1713,16 @@ const ImageBlending = ({
     e.preventDefault();
     if (!uploadedImage1 || !uploadedImage2 || drawingTool !== "polyline")
       return;
-
     const canvas = canvasRef.current;
     const rect = canvas.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
-
     // Get natural coordinates
     const img = imageNum === 1 ? imgRef1.current : imgRef2.current;
     const scaleX = img.naturalWidth / img.offsetWidth;
     const scaleY = img.naturalHeight / img.offsetHeight;
-
     const naturalX = x * scaleX;
     const naturalY = y * scaleY;
-
     // Clear other selection types
     if (imageNum === 1) {
       setRoi1(null);
@@ -1794,18 +1789,16 @@ const ImageBlending = ({
 
   // Modal polyline functions
   const handleModalPolylineClick = (e) => {
+    if (e.button !== 0) return;
     e.stopPropagation();
     e.preventDefault();
     if (drawingTool !== "polyline") return;
 
-    const canvas = modalCanvasRef.current;
-    const rect = canvas.getBoundingClientRect();
-    const rawX = e.clientX - rect.left;
-    const rawY = e.clientY - rect.top;
+    // Use the common coordinate transformation function
+    const { x, y } = getCanvasTransformedCoords(e);
 
-    // FIXED: Transform coordinates
-    const x = (rawX - roiModalPosition.x) / roiModalScale;
-    const y = (rawY - roiModalPosition.y) / roiModalScale;
+    // Get canvas reference
+    const canvas = modalCanvasRef.current;
 
     // Get natural coordinates
     const img = modalImgRef.current;
@@ -1841,7 +1834,7 @@ const ImageBlending = ({
         // Immediate redraw
         setTimeout(() => {
           drawPolylineOnCanvas(
-            canvas,
+            canvas, // Now canvas is defined in the correct scope
             newPath,
             {
               naturalWidth: imgDimensions.naturalWidth,
@@ -1877,72 +1870,85 @@ const ImageBlending = ({
     }
   };
 
-  const completePolyline = (imageNum) => {
-    const currentPath = imageNum === 1 ? polylinePath1 : polylinePath2;
+  const completePolyline = (imageNum, isModal = false) => {
+    let currentPath;
+    let setIsPolylineComplete;
+    let setPolylineMask;
+    let canvasRef;
+    let imgRef;
+    let imgDimensions;
+    let color;
 
-    if (currentPath.length < 3) return; // Need at least 3 points
-
-    if (imageNum === 1) {
-      setIsPolylineComplete1(true);
-      // Generate mask
-      const img = imgRef1.current;
-      if (img) {
-        const maskDataURL = generateMaskFromPolyline(currentPath, img);
-        setPolylineMask1(maskDataURL);
-      }
-      // Redraw canvas
-      if (canvasRef1.current && imgRef1.current) {
-        drawPolylineOnCanvas(
-          canvasRef1.current,
-          currentPath,
-          imgRef1.current,
-          "#ff0000",
-          true
-        );
-      }
+    if (isModal) {
+      // Modal completion
+      currentPath = modalPolylinePath;
+      setIsPolylineComplete = setModalPolylineComplete;
+      setPolylineMask = setGeneratedMask;
+      canvasRef = modalCanvasRef;
+      imgRef = modalImgRef;
+      imgDimensions =
+        expandedForROI === "image1" ? image1Dimensions : image2Dimensions;
+      color = "#00ff00";
     } else {
-      setIsPolylineComplete2(true);
-      // Generate mask
-      const img = imgRef2.current;
-      if (img) {
-        const maskDataURL = generateMaskFromPolyline(currentPath, img);
-        setPolylineMask2(maskDataURL);
-      }
-      // Redraw canvas
-      if (canvasRef2.current && imgRef2.current) {
-        drawPolylineOnCanvas(
-          canvasRef2.current,
-          currentPath,
-          imgRef2.current,
-          "#ff0000",
-          true
-        );
-      }
+      // Main view completion
+      currentPath = imageNum === 1 ? polylinePath1 : polylinePath2;
+      setIsPolylineComplete =
+        imageNum === 1 ? setIsPolylineComplete1 : setIsPolylineComplete2;
+      setPolylineMask = imageNum === 1 ? setPolylineMask1 : setPolylineMask2;
+      canvasRef = imageNum === 1 ? canvasRef1 : canvasRef2;
+      imgRef = imageNum === 1 ? imgRef1 : imgRef2;
+      imgDimensions = imageNum === 1 ? image1Dimensions : image2Dimensions;
+      color = "#ff0000";
     }
 
-    setCurrentImage(null);
+    if (currentPath.length < 3) return;
+
+    setIsPolylineComplete(true);
+
+    // Generate mask
+    if (currentPath.length > 2) {
+      const tempImg = {
+        naturalWidth: imgDimensions.naturalWidth,
+        naturalHeight: imgDimensions.naturalHeight,
+      };
+      const maskDataURL = generateMaskFromPolyline(currentPath, tempImg);
+      setPolylineMask(maskDataURL);
+    }
+
+    // Redraw canvas
+    if (canvasRef.current) {
+      drawPolylineOnCanvas(
+        canvasRef.current,
+        currentPath,
+        {
+          naturalWidth: imgDimensions.naturalWidth,
+          naturalHeight: imgDimensions.naturalHeight,
+        },
+        color,
+        true
+      );
+    }
+
+    if (!isModal) {
+      setCurrentImage(null);
+    }
   };
 
   // Generate mask from polyline path
   const generateMaskFromPolyline = (path, imgElement) => {
     if (!path || path.length === 0 || !imgElement) return null;
-
     const canvas = document.createElement("canvas");
     canvas.width = imgElement.naturalWidth;
     canvas.height = imgElement.naturalHeight;
     const ctx = canvas.getContext("2d");
-
     // Create black background
     ctx.fillStyle = "rgb(0, 0, 0)";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
-
     if (path.length < 3) return canvas.toDataURL("image/png");
-
     // Draw white filled polygon
     ctx.fillStyle = "rgb(255, 255, 255)";
     ctx.strokeStyle = "rgb(255, 255, 255)";
     ctx.lineWidth = 2;
-
     ctx.beginPath();
     ctx.moveTo(path[0].x, path[0].y);
     for (let i = 1; i < path.length; i++) {
@@ -1951,13 +1957,11 @@ const ImageBlending = ({
     ctx.closePath();
     ctx.fill();
     ctx.stroke();
-
     return canvas.toDataURL("image/png");
   };
 
   const expandImage = (imageSrc) => {
     const images = [`${BACKEND_URL}/${blendedResult}`];
-    // NEW: Include color result
     if (colorBlendedResult) {
       images.push(`${BACKEND_URL}/${colorBlendedResult}`);
     }
@@ -2012,7 +2016,7 @@ const ImageBlending = ({
     e.preventDefault();
     e.stopPropagation();
 
-    const delta = e.deltaY * -0.002; // More precise scaling
+    const delta = e.deltaY * -0.002;
     const minScale = 0.1;
     const maxScale = 5;
 
@@ -2022,7 +2026,6 @@ const ImageBlending = ({
         maxScale
       );
 
-      // Auto-center when zooming out to minimum
       if (newScale <= 0.5) {
         setModalPosition({ x: 0, y: 0 });
       }
@@ -2037,13 +2040,11 @@ const ImageBlending = ({
       // Left mouse button only
       e.preventDefault();
       e.stopPropagation();
-
       setIsModalDragging(true);
       setModalDragStart({
         x: e.clientX - modalPosition.x,
         y: e.clientY - modalPosition.y,
       });
-
       // Change cursor
       document.body.style.cursor = "grabbing";
     }
@@ -2053,10 +2054,8 @@ const ImageBlending = ({
     if (isModalDragging) {
       e.preventDefault();
       e.stopPropagation();
-
       const newX = e.clientX - modalDragStart.x;
       const newY = e.clientY - modalDragStart.y;
-
       setModalPosition({ x: newX, y: newY });
     }
   };
@@ -2096,7 +2095,7 @@ const ImageBlending = ({
     e.preventDefault();
     e.stopPropagation();
 
-    const delta = e.deltaY * -0.002; // More precise scaling
+    const delta = e.deltaY * -0.002;
     const minScale = 0.1;
     const maxScale = 5;
 
@@ -2105,35 +2104,23 @@ const ImageBlending = ({
         Math.max(minScale, prevScale * (1 + delta)),
         maxScale
       );
-
-      // Auto-center when zooming out to minimum
       if (newScale <= 0.5) {
         setRoiModalPosition({ x: 0, y: 0 });
       }
-
       return newScale;
     });
   };
 
   // ROI Modal Image Pan Functions
   const handleRoiModalImageMouseDown = (e) => {
-    if (
-      e.button === 0 &&
-      !isModalDrawing &&
-      !modalIsDraggingRect &&
-      !modalIsResizingRect
-    ) {
-      // Only allow panning when not drawing
+    if (e.button === 2) {
       e.preventDefault();
       e.stopPropagation();
-
       setIsRoiModalDragging(true);
       setRoiModalDragStart({
         x: e.clientX - roiModalPosition.x,
         y: e.clientY - roiModalPosition.y,
       });
-
-      // Change cursor
       document.body.style.cursor = "grabbing";
     }
   };
@@ -2142,10 +2129,8 @@ const ImageBlending = ({
     if (isRoiModalDragging) {
       e.preventDefault();
       e.stopPropagation();
-
       const newX = e.clientX - roiModalDragStart.x;
       const newY = e.clientY - roiModalDragStart.y;
-
       setRoiModalPosition({ x: newX, y: newY });
     }
   };
@@ -2160,7 +2145,7 @@ const ImageBlending = ({
     setRoiModalPosition({ x: 0, y: 0 });
   };
 
-  // Add useEffect for ROI modal mouse events (add this after your existing useEffects):
+  // Add useEffect for ROI modal mouse events :
   useEffect(() => {
     if (isRoiModalDragging) {
       const handleMouseMove = (e) => handleRoiModalImageMouseMove(e);
@@ -2170,10 +2155,8 @@ const ImageBlending = ({
         passive: false,
       });
       document.addEventListener("mouseup", handleMouseUp);
-
       // Prevent text selection while dragging
       document.body.style.userSelect = "none";
-
       return () => {
         document.removeEventListener("mousemove", handleMouseMove);
         document.removeEventListener("mouseup", handleMouseUp);
@@ -2207,15 +2190,12 @@ const ImageBlending = ({
     if (isModalDragging) {
       const handleMouseMove = (e) => handleModalImageMouseMove(e);
       const handleMouseUp = () => handleModalImageMouseUp();
-
       document.addEventListener("mousemove", handleMouseMove, {
         passive: false,
       });
       document.addEventListener("mouseup", handleMouseUp);
-
       // Prevent text selection while dragging
       document.body.style.userSelect = "none";
-
       return () => {
         document.removeEventListener("mousemove", handleMouseMove);
         document.removeEventListener("mouseup", handleMouseUp);
@@ -2250,19 +2230,15 @@ const ImageBlending = ({
   // Add this helper function to detect what part of rectangle is being clicked:
   const detectRectInteraction = (mouseX, mouseY, roi, img) => {
     if (!roi || !img) return null;
-
     const scaleX = img.offsetWidth / img.naturalWidth;
     const scaleY = img.offsetHeight / img.naturalHeight;
-
     const displayRoi = {
       x: roi.x * scaleX,
       y: roi.y * scaleY,
       width: roi.width * scaleX,
       height: roi.height * scaleY,
     };
-
     const handleSize = 8; // Size of resize handles
-
     // Check corners for resize handles
     if (
       Math.abs(mouseX - (displayRoi.x + displayRoi.width)) < handleSize &&
@@ -2447,12 +2423,10 @@ const ImageBlending = ({
       setShowAlert(true);
       return;
     }
-
     const hasImage1Selection =
       roi1 ||
       (freehandPath1.length > 0 && freehandMask1) ||
       (polylinePath1.length > 2 && isPolylineComplete1 && polylineMask1);
-
     const hasImage2Selection =
       roi2 ||
       (freehandPath2.length > 0 && freehandMask2) ||
@@ -2465,21 +2439,17 @@ const ImageBlending = ({
       setShowAlert(true);
       return;
     }
-
     if (isColorImage2 && !selectedChannel) {
       setErrorMessage("Please select a color channel for the color image");
       setShowAlert(true);
       return;
     }
-
     if (profile.credit < 1) {
       setErrorMessage("Insufficient credits to perform blending");
       setShowAlert(true);
       return;
     }
-
     setIsBlending(true);
-
     try {
       const img1 = imgRef1.current;
       const img2 = imgRef2.current;
@@ -3093,14 +3063,14 @@ const ImageBlending = ({
             <div className="mt-2 flex justify-center space-x-2">
               <button
                 onClick={clearPolyline1}
-                className="px-3 py-1 bg-red-500 hover:bg-red-600 text-white text-sm rounded-md transition-colors"
+                className="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-sm"
               >
                 Clear Polyline
               </button>
               {polylinePath1.length > 2 && !isPolylineComplete1 && (
                 <button
-                  onClick={() => completePolyline(1)}
-                  className="px-3 py-1 bg-green-500 hover:bg-green-600 text-white text-sm rounded-md transition-colors"
+                  onClick={() => completePolyline(1, false)}
+                  className="bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded text-sm"
                 >
                   Complete Polyline
                 </button>
@@ -3345,14 +3315,14 @@ const ImageBlending = ({
             <div className="mt-2 flex justify-center space-x-2">
               <button
                 onClick={clearPolyline2}
-                className="px-3 py-1 bg-red-500 hover:bg-red-600 text-white text-sm rounded-md transition-colors"
+                className="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-sm"
               >
                 Clear Polyline
               </button>
               {polylinePath2.length > 2 && !isPolylineComplete2 && (
                 <button
-                  onClick={() => completePolyline(2)}
-                  className="px-3 py-1 bg-green-500 hover:bg-green-600 text-white text-sm rounded-md transition-colors"
+                  onClick={() => completePolyline(2, false)}
+                  className="bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded text-sm"
                 >
                   Complete Polyline
                 </button>
@@ -3868,41 +3838,8 @@ const ImageBlending = ({
               modalPolylinePath.length > 2 &&
               !modalPolylineComplete && (
                 <button
-                  onClick={() => {
-                    setModalPolylineComplete(true);
-                    // Generate mask for preview
-                    const img = modalImgRef.current;
-                    const imgDimensions =
-                      expandedForROI === "image1"
-                        ? image1Dimensions
-                        : image2Dimensions;
-
-                    if (modalPolylinePath.length > 2) {
-                      const tempImg = {
-                        naturalWidth: imgDimensions.naturalWidth,
-                        naturalHeight: imgDimensions.naturalHeight,
-                      };
-                      const maskDataURL = generateMaskFromPolyline(
-                        modalPolylinePath,
-                        tempImg
-                      );
-                      setGeneratedMask(maskDataURL);
-                    }
-
-                    // Redraw canvas with completed polyline
-                    const canvas = modalCanvasRef.current;
-                    drawPolylineOnCanvas(
-                      canvas,
-                      modalPolylinePath,
-                      {
-                        naturalWidth: imgDimensions.naturalWidth,
-                        naturalHeight: imgDimensions.naturalHeight,
-                      },
-                      "#00ff00",
-                      true
-                    );
-                  }}
-                  className="absolute left-20 h-8 px-3 flex items-center justify-center bg-green-500 hover:bg-green-600 text-white text-sm font-medium rounded cursor-pointer transition-colors"
+                  onClick={() => completePolyline(null, true)}
+                  className="absolute left-20 h-8  flex items-center justify-center bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded text-sm"
                 >
                   Complete
                 </button>
@@ -3923,7 +3860,7 @@ const ImageBlending = ({
                     );
                   }
                 }}
-                className="absolute left-6 h-8 px-3 flex items-center justify-center text-red-400 hover:text-red-300 text-sm font-medium rounded cursor-pointer transition-colors"
+                className="absolute left-6 h-8 px-3 flex items-center justify-center bg-red-500 hover:bg-red-600 text-white  py-1 rounded text-sm"
               >
                 Clear
               </button>
@@ -3955,10 +3892,11 @@ const ImageBlending = ({
                     ? "grabbing"
                     : roiModalScale > 1
                     ? "grab"
-                    : "crosshair",
+                    : "default",
                 }}
                 onMouseDown={handleRoiModalImageMouseDown}
                 onDoubleClick={handleRoiModalDoubleClick}
+                onContextMenu={(e) => e.preventDefault()}
                 draggable={false}
               />
             )}
@@ -3975,41 +3913,79 @@ const ImageBlending = ({
                     ? "grabbing"
                     : roiModalScale > 1
                     ? "grab"
-                    : "crosshair",
+                    : "default",
                 }}
                 onMouseDown={handleRoiModalImageMouseDown}
                 onDoubleClick={handleRoiModalDoubleClick}
+                onContextMenu={(e) => e.preventDefault()}
                 draggable={false}
               />
             )}
             <canvas
               ref={modalCanvasRef}
-              className="absolute top-0 left-0 w-full h-full cursor-crosshair"
+              className="absolute top-0 left-0 w-full h-full"
               style={{
+                cursor: isRoiModalDragging
+                  ? "grabbing"
+                  : roiModalScale > 1
+                  ? "grab"
+                  : "crosshair",
                 transform: `translate(${roiModalPosition.x}px, ${roiModalPosition.y}px) scale(${roiModalScale})`,
                 transformOrigin: "center center",
               }}
+              onContextMenu={(e) => e.preventDefault()}
               onMouseDown={(e) => {
-                if (drawingTool === "rectangle") {
-                  handleModalMouseDown(e);
-                } else if (drawingTool === "pencil") {
-                  handleModalMouseDown(e);
-                } else if (drawingTool === "polyline") {
-                  handleModalPolylineClick(e);
+                // Right-click for panning
+                if (e.button === 2) {
+                  handleRoiModalImageMouseDown(e);
+                }
+                // Left-click for drawing
+                else if (e.button === 0) {
+                  if (drawingTool === "rectangle") {
+                    handleModalMouseDown(e);
+                  } else if (drawingTool === "pencil") {
+                    handleModalMouseDown(e);
+                  } else if (drawingTool === "polyline") {
+                    handleModalPolylineClick(e);
+                  }
                 }
               }}
               onMouseMove={(e) => {
-                if (drawingTool === "rectangle" || drawingTool === "pencil") {
+                // Handle panning
+                if (isRoiModalDragging) {
+                  handleRoiModalImageMouseMove(e);
+                }
+                // Handle drawing
+                else if (
+                  drawingTool === "rectangle" ||
+                  drawingTool === "pencil"
+                ) {
                   handleModalMouseMove(e);
                 }
               }}
               onMouseUp={(e) => {
-                if (drawingTool === "rectangle" || drawingTool === "pencil") {
+                // Handle panning end
+                if (isRoiModalDragging) {
+                  handleRoiModalImageMouseUp();
+                }
+                // Handle drawing end
+                else if (
+                  drawingTool === "rectangle" ||
+                  drawingTool === "pencil"
+                ) {
                   handleModalMouseUp(e);
                 }
               }}
               onMouseLeave={(e) => {
-                if (drawingTool === "rectangle" || drawingTool === "pencil") {
+                // Handle panning end
+                if (isRoiModalDragging) {
+                  handleRoiModalImageMouseUp();
+                }
+                // Handle drawing end
+                else if (
+                  drawingTool === "rectangle" ||
+                  drawingTool === "pencil"
+                ) {
                   handleModalMouseUp(e);
                 }
               }}

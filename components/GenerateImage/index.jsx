@@ -775,19 +775,24 @@ const GenerateImages = ({
             setRoi2={setRoi2}
           />
         )}
-        {uploadedImage && isInpenting && (
+        {isInpenting && (
           <BoundingBoxDraw
             image={image}
             setImage={setImage}
             maskImage={maskImage}
             setMaskImage={setMaskImage}
             uploadedImage={uploadedImage}
+            setUploadedImage={setUploadedImage}
             inputPrompt={inputPrompt}
             set_inpenting_uniqe_code={set_inpenting_uniqe_code}
             onChannelSelected={setSelectedChannel1}
+            loading={loading}
+            handleGenerate={handleGenerate}
+            selectedProject={selectedProject}
+            username={username}
           />
         )}
-        {loading ? (
+        {loading && !isInpenting ? (
           <div>
             <EmptySkeleton
               numImages={numImages}
@@ -801,7 +806,7 @@ const GenerateImages = ({
               selectedProject={selectedProject}
             />
           </div>
-        ) : inputPrompt ? (
+        ) : inputPrompt && !isInpenting ? (
           <>
             <EmptySkeleton
               numImages={numImages}

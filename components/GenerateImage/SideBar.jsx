@@ -902,7 +902,7 @@ const Sidebar = ({
           </div>
 
           {/* Generate button */}
-          {!isImageBlending && (
+          {!isImageBlending && !isInpenting && (
             <div className="px-2 pt-3 border-t border-neutral-500">
               <button
                 type="submit"
