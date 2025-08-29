@@ -90,7 +90,7 @@ const GenerateImages = ({
     y: 0,
   });
   const [isCombinedModalDragging, setIsCombinedModalDragging] = useState(false);
-
+  const [inpaintingOpen, setInpaintingOpen] = useState(false);
   const [composerCheckpoint, setComposerCheckpoint] =
     useState("Composer_v1.0.0.0");
 
@@ -104,6 +104,22 @@ const GenerateImages = ({
   useEffect(() => {
     setRoi2(null);
   }, [uploadedImage2]);
+
+  useEffect(() => {
+    if (isInpenting) {
+      setInpaintingOpen(true);
+    } else {
+      setInpaintingOpen(false);
+    }
+  }, [isInpenting]);
+
+  useEffect(() => {
+    if (isInpenting && uploadedImage && !inpaintingOpen) {
+      setInpaintingOpen(true);
+      setImages([]);
+      setImageGroups([]);
+    }
+  }, [uploadedImage, isInpenting, inpaintingOpen]);
 
   useEffect(() => {
     setRoi1(null);
@@ -238,6 +254,7 @@ const GenerateImages = ({
 
       setImages([]);
       setUploadedImage(null);
+      setInpaintingOpen(false);
       const data = await response.json();
       // console.log(data);
       groupImagesBySubPrompt(data.images);
@@ -775,7 +792,7 @@ const GenerateImages = ({
             setRoi2={setRoi2}
           />
         )}
-        {isInpenting && (
+        {inpaintingOpen && (
           <BoundingBoxDraw
             image={image}
             setImage={setImage}
