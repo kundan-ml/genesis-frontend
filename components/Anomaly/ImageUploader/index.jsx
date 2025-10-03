@@ -29,7 +29,7 @@ const Anomaly = ({ profile, prompt, darkTheme, setDarkTheme }) => {
   const [result, setResult] = useState("");
   const [anomalyScore, setAnomalyScore] = useState(0);
   const [threshold, setthreshold] = useState(0.5);
-
+  const [min_area, set_min_area] = useState(2500)
   const [imageStats, setImageStats] = useState({
     totalImages: 0,
     passImages: 0,
@@ -202,6 +202,7 @@ const Anomaly = ({ profile, prompt, darkTheme, setDarkTheme }) => {
     formData.append("username", username);
     formData.append("setthreshold", threshold);
     formData.append("action", "detect"); // Indicate this is detection
+    formData.append('min_area', min_area)
 
     setLoading(true);
     setStep(3);
@@ -408,6 +409,8 @@ const Anomaly = ({ profile, prompt, darkTheme, setDarkTheme }) => {
           isUploading={isUploading}
           setStep={setStep}
           uploadedFiles={uploadedFiles}
+          min_area={min_area} 
+          set_min_area={set_min_area}
         />
       </section>
       <main className="flex-1  md:w-3/4 ml-1/4  sm:w-[100vw] px-4 md:px-10  pt-20 pb-8 md:py-8 flex   bg-gradient-to-r from-gradient-start to-gradient-end min-h-[100vh] ">
