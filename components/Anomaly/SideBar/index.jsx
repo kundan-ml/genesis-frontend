@@ -45,6 +45,7 @@ const SideBar = ({
   isUploading,
   uploadedFiles,
   setStep,
+  min_area, set_min_area
 }) => {
   const [Credit, setCredit] = useState(0);
   const [openSections, setOpenSections] = useState([
@@ -581,6 +582,34 @@ const SideBar = ({
                         name=""
                         value={threshold}
                         onChange={(e) => setthreshold(e.target.value)}
+                        className={`w-full pl-8 px-2 py-1 mt-2 text-sm border rounded-sm focus:outline-none transition-all dark:border-neutral-800 dark:hover:border-neutral-700 dark:bg-neutral-900 dark:text-gray-300 dark:focus:border-gray-600 border-gray-300 bg-white text-gray-900 focus:border-gray-500`}
+                      />
+                    </div>
+
+                    
+                  </div>
+
+
+
+                  
+
+                  <div
+                    className="tooltip-container-top"
+                    data-title="Put Min Area value "
+                  >
+                    <div className="flex flex-col">
+                      <label
+                        htmlFor="min_area"
+                        className="text-sm font-medium"
+                      >
+                        Min Area
+                      </label>
+                      <MdOutlineDataThresholding className="absolute left-2 bottom-1 h-5 text-indigo-500 dark:text-gray-100" />
+                      <input
+                        type="text"
+                        name=""
+                        value={min_area}
+                        onChange={(e) => set_min_area(e.target.value)}
                         className={`w-full pl-8 px-2 py-1 mt-2 text-sm border rounded-sm focus:outline-none transition-all dark:border-neutral-800 dark:hover:border-neutral-700 dark:bg-neutral-900 dark:text-gray-300 dark:focus:border-gray-600 border-gray-300 bg-white text-gray-900 focus:border-gray-500`}
                       />
                     </div>
