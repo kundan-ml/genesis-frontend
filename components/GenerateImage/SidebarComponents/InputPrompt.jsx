@@ -90,6 +90,13 @@ const InputPrompt = ({
       "cardboard shipper box,four rows and two columns,neatly aligned cartons,readable labels on each box,clear spacing between columns,visible gap",
       "cardboard shipper box,two rows and two columns,neatly aligned cartons,readable labels on each box,clear spacing between columns,visible gap",
     ],
+
+      "Wet Lens": [
+        "hole present in optical region,lens surface,high contrast,neutral background,sharp focus,low glare"
+        "fiber present in optical region,thin thread like structure,lens surface,high contrast,neutral background,sharp focus,low glare" 
+        "foreign material present in optical region,dark irregular particle,lens surface,high contrast,neutral background,sharp focus,low glare"
+  
+    ],
     "IOL Lens": [
       "monofocal,fov,bright field,lens,haptics,fracture,high resolution",
       "monofocal,fov,dark field bit-1,lens,haptics,fracture,high resolution",
