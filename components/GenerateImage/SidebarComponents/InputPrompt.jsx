@@ -92,9 +92,9 @@ const InputPrompt = ({
     ],
 
       "Wet Lens": [
-        "hole present in optical region,lens surface,high contrast,neutral background,sharp focus,low glare"
-        "fiber present in optical region,thin thread like structure,lens surface,high contrast,neutral background,sharp focus,low glare" 
-        "foreign material present in optical region,dark irregular particle,lens surface,high contrast,neutral background,sharp focus,low glare"
+        "hole present in optical region,lens surface,high contrast,neutral background,sharp focus,low glare",
+        "fiber present in optical region,thin thread like structure,lens surface,high contrast,neutral background,sharp focus,low glare" ,
+        "foreign material present in optical region,dark irregular particle,lens surface,high contrast,neutral background,sharp focus,low glare",
   
     ],
     "IOL Lens": [
